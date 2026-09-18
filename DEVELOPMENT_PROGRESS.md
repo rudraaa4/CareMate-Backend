@@ -1,30 +1,26 @@
 # CareMate Development Progress
 
-Current Phase: 2
+Current Phase: 3
 
 ## Completed
 
 - [x] Phase 0 - Repository foundation
 - [x] Phase 1 - FastAPI foundation
 - [x] Phase 2 - PostgreSQL / SQLAlchemy / Alembic
+- [x] Phase 3 - User registration and authentication
 
 ## Current
 
-- [ ] Phase 3 - User registration and authentication
+- [ ] Phase 4 - Patient profile
 
 ### Current Tasks
 
-- [ ] Create User model
-- [ ] Create migration for users table
-- [ ] Create UserCreate schema
-- [ ] Add password hashing
-- [ ] Implement POST /api/auth/register
-- [ ] Reject duplicate email
-- [ ] Implement POST /api/auth/login
-- [ ] Generate access JWT
-- [ ] Create authentication dependency
-- [ ] Add GET /api/users/me
-- [ ] Test invalid password / invalid token / missing token
+- [ ] Create PatientProfile model (one-to-one with User)
+- [ ] Create schemas
+- [ ] Create profile routes: GET /api/v1/profile, PUT/PATCH /api/v1/profile
+- [ ] Decide: profile created during registration, or separately?
+- [ ] Add ownership protection (a user can only touch their own profile)
+- [ ] Test profile retrieval/update
 
 ## Not Started
 
@@ -66,6 +62,25 @@ Current Phase: 2
   injected at runtime in `alembic/env.py` from `app.core.config.settings`,
   so the DB URL/credentials are never duplicated into a version-controlled
   file.
+- Password hashing: **bcrypt** (direct `bcrypt` package), not `passlib` —
+  passlib is effectively unmaintained and has known compatibility breaks
+  with recent bcrypt releases. JWT: **PyJWT**, not `python-jose` — more
+  actively maintained.
+- No service/repository layer yet — auth logic lives directly in
+  `app/api/routes/auth.py`. Will introduce a service layer once logic gets
+  genuinely complex (e.g. Phase 8 adherence calculations), not before.
+- New routes use an `/api/v1/...` prefix per the spec's API design
+  principles (section 14); `/api/health` stays unversioned as an infra
+  endpoint, not a versioned business resource.
+- `User.role` is a Postgres enum (currently only `patient`) via
+  SQLAlchemy's `Enum(..., values_callable=...)` — without
+  `values_callable`, SQLAlchemy stores the Python enum's *member name*
+  ("PATIENT") instead of its *value* ("patient"); caught and fixed before
+  the migration was applied.
+- Tests run against a separate `caremate_test` Postgres database (created
+  alongside `caremate`), never the dev database — wired via FastAPI's
+  `app.dependency_overrides` in `tests/conftest.py`, with tables created/
+  dropped once per test session and rows cleared between tests.
 
 ## Known Issues
 
@@ -73,8 +88,8 @@ None yet.
 
 ## Next Session
 
-Begin Phase 3 - User Registration and Authentication: create the `User`
-SQLAlchemy model (`app/models/user.py`), generate its Alembic migration,
-add `UserCreate`/`UserResponse` Pydantic schemas, password hashing, and
-`POST /api/auth/register`, `POST /api/auth/login` (JWT), and a protected
-`GET /api/users/me` endpoint.
+Begin Phase 4 - Patient Profile: create the `PatientProfile` SQLAlchemy
+model with a one-to-one relationship to `User`, generate its migration,
+add schemas and `GET`/`PUT` (or `PATCH`) `/api/v1/profile` routes, and
+ensure a user can only ever read/write their own profile (via
+`get_current_user`, the same pattern introduced in Phase 3).
