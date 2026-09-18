@@ -11,5 +11,15 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
 
+    # Comma-separated list of origins allowed to call this API from a
+    # browser. Defaults cover the dev API-tester page and the eventual
+    # local React dev server. Tighten this to the real frontend's origin
+    # before any production deployment (see CAREMATE_MASTER_SPEC.md section 32).
+    cors_origins: str = "http://127.0.0.1:8080,http://localhost:8080,http://127.0.0.1:5173,http://localhost:5173"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",")]
+
 
 settings = Settings()

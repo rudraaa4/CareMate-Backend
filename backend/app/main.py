@@ -1,12 +1,27 @@
 from fastapi import Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.api.routes.auth import router as auth_router
 from app.api.routes.users import router as users_router
+from app.core.config import settings
 from app.core.database import get_db
 
 app = FastAPI(title="CareMate API")
+
+# Browsers block JS on one origin (scheme+host+port) from reading responses
+# from a different origin unless the server opts in via these headers. Our
+# API (port 8000) and the dev API-tester page (port 8080) count as different
+# origins, so without this, every fetch() from that page would be blocked
+# client-side even though the request succeeded on the server.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(auth_router)
 app.include_router(users_router)
