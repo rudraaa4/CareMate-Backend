@@ -28,7 +28,7 @@
 </p>
 
 <label>API base URL
-  <input id="base-url" value="http://127.0.0.1:8002" />
+  <input id="base-url" value="http://127.0.0.1:8003" />
 </label>
 
 <fieldset>
@@ -114,6 +114,27 @@
   <label>Note ID (for get/delete below) <input id="note-id" value="1" /></label>
   <button onclick="getNote()">GET /health-notes/:id</button>
   <button onclick="deleteNote()">DELETE /health-notes/:id</button>
+</fieldset>
+
+<fieldset>
+  <legend>11. Medical Documents (PDF, JPEG, or PNG only)</legend>
+  <label>File <input id="doc-file" type="file" accept=".pdf,.jpg,.jpeg,.png" /></label>
+  <label>Document type
+    <select id="doc-type">
+      <option value="prescription">prescription</option>
+      <option value="lab_report" selected>lab_report</option>
+      <option value="scan_report">scan_report</option>
+      <option value="discharge_summary">discharge_summary</option>
+      <option value="doctor_note">doctor_note</option>
+      <option value="other">other</option>
+    </select>
+  </label>
+  <label>Description <input id="doc-description" value="" /></label>
+  <button onclick="uploadDocument()">POST /documents (upload)</button>
+  <button onclick="listDocuments()">GET /documents</button>
+  <label>Document ID (for get/download below) <input id="doc-id" value="1" /></label>
+  <button onclick="getDocument()">GET /documents/:id</button>
+  <button onclick="downloadDocument()">GET /documents/:id/download (opens in new tab)</button>
 </fieldset>
 
 <fieldset>
@@ -484,6 +505,77 @@ async function deleteNote() {
     log(`DELETE /health-notes/${id}`, res.status, body);
   } catch (err) {
     log("DELETE /health-notes/:id", "ERR", String(err));
+  }
+}
+
+async function uploadDocument() {
+  const fileInput = document.getElementById("doc-file");
+  const file = fileInput.files[0];
+  if (!file) {
+    log("POST /documents", "ERR", "Choose a file first");
+    return;
+  }
+  const form = new FormData();
+  form.append("file", file);
+  form.append("document_type", document.getElementById("doc-type").value);
+  const description = document.getElementById("doc-description").value;
+  if (description) form.append("description", description);
+
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/documents`, {
+      method: "POST",
+      headers: authHeaders(), // no Content-Type here — the browser sets the
+      // multipart boundary itself; setting it manually breaks the upload.
+      body: form,
+    });
+    const body = await res.json();
+    log("POST /documents", res.status, body);
+    if (res.ok) document.getElementById("doc-id").value = body.id;
+  } catch (err) {
+    log("POST /documents", "ERR", String(err));
+  }
+}
+
+async function listDocuments() {
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/documents`, { headers: authHeaders() });
+    const body = await res.json();
+    log("GET /documents", res.status, body);
+  } catch (err) {
+    log("GET /documents", "ERR", String(err));
+  }
+}
+
+async function getDocument() {
+  const id = document.getElementById("doc-id").value;
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/documents/${id}`, { headers: authHeaders() });
+    const body = await res.json();
+    log(`GET /documents/${id}`, res.status, body);
+  } catch (err) {
+    log("GET /documents/:id", "ERR", String(err));
+  }
+}
+
+async function downloadDocument() {
+  const id = document.getElementById("doc-id").value;
+  try {
+    // A plain <a href> new-tab open wouldn't carry the Bearer token, since
+    // this API uses header-based auth, not cookies — so we fetch with the
+    // auth header ourselves and open the result as a blob instead.
+    const res = await fetch(`${baseUrl()}/api/v1/documents/${id}/download`, {
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      log(`GET /documents/${id}/download`, res.status, await res.json());
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+    log(`GET /documents/${id}/download`, res.status, `Opened in new tab (${blob.size} bytes, ${blob.type})`);
+  } catch (err) {
+    log("GET /documents/:id/download", "ERR", String(err));
   }
 }
 </script>

@@ -21,5 +21,10 @@ class Settings(BaseSettings):
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",")]
 
+    # Deployment-tunable; the allowed content types themselves are a fixed
+    # business rule, not something that varies by environment, so that
+    # whitelist lives as a constant in app/api/routes/documents.py instead.
+    max_upload_size_bytes: int = 10 * 1024 * 1024  # 10 MB
+
 
 settings = Settings()

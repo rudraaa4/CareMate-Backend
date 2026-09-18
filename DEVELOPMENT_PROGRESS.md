@@ -1,6 +1,6 @@
 # CareMate Development Progress
 
-Current Phase: 11
+Current Phase: 12
 
 ## Completed
 
@@ -16,6 +16,7 @@ Current Phase: 11
 - [x] Phase 9 - Medicine inventory
 - [x] Phase 10 - Patient dashboard
 - [x] Phase 11 - Health notes
+- [x] Phase 12 - Medical document vault
 
 **MILESTONE B - Working Medication Tracker (Phases 5-10) complete.**
 Medicine -> Schedule -> Event -> Adherence -> Inventory -> Dashboard all
@@ -24,15 +25,14 @@ already a functioning backend product."
 
 ## Current
 
-- [ ] Phase 12 - Medical Document Vault
+- [ ] Phase 13 - Prescription Domain Model
 
 ### Current Tasks
 
-- [ ] MedicalDocument model (document_type, storage_key/path, original_filename, content_type, document_date, description, uploaded_at)
-- [ ] Upload validation: allowed types/sizes, safe generated storage names (never trust client filename as a path)
-- [ ] Local dev storage, cleanly abstracted for later object storage
-- [ ] Authorized download endpoint, ownership-checked
-- [ ] Prevent path traversal; no unrestricted public upload directory
+- [ ] Prescription model (patient_id, document_id optional, doctor_name, hospital_name, prescription_date, notes, source)
+- [ ] CRUD scoped to patient, ownership-checked
+- [ ] Optional link to a MedicalDocument (the uploaded prescription file, if any)
+- [ ] Distinguish prescription-as-domain-object from generic document metadata
 
 ## Not Started
 
@@ -238,41 +238,68 @@ already a functioning backend product."
   prevent spoofing when adherence math depends on it), a health note's
   timing is inherently the patient's own account of when something
   happened, not something to guard against.
+- **Phase 12 storage is a `FileStorage` interface + `LocalFileStorage`**
+  (`app/storage/`), injected via a `get_storage` FastAPI dependency —
+  same reasoning as `get_db`: tests override it with a temp directory
+  (`tests/conftest.py`), so they never write real files into
+  `backend/uploads/`. Swapping local disk for real object storage later
+  is one new class, not a rewrite of every route.
+- **The actual path-traversal defense is that `storage_key` is always
+  server-generated** (`uuid4().hex` + an extension pulled from a
+  whitelist keyed by declared content-type — never the client's claimed
+  filename or extension). `original_filename` is stored only as display
+  metadata and never used to build a filesystem path. Verified with a
+  test uploading a file literally named `../../../../etc/passwd` — it
+  uploads and downloads correctly, with that string preserved harmlessly
+  as metadata. `LocalFileStorage` also has a resolve-and-contain check as
+  defense in depth, though it's not the primary defense.
+- **Content-type validation is declared-type + whitelist, not file-magic
+  inspection.** We trust the client-reported content type against
+  `ALLOWED_CONTENT_TYPES` (PDF/JPEG/PNG); we don't verify the actual file
+  bytes match (that needs a library like `python-magic` and is real
+  hardening, not something this phase's spec asks for) — same category of
+  honestly-documented limitation as Phase 9's concurrency note.
+- **Uploads are never statically mounted** — no `StaticFiles` on
+  `backend/uploads/`. The only way to retrieve file bytes is
+  `GET /documents/{id}/download`, authenticated and ownership-checked.
+  Verified by a test hitting `/uploads/anything.pdf` directly and
+  confirming 404.
+- **Scope: no PATCH/DELETE for documents this phase**, unlike Phase 11's
+  notes. The spec's Phase 12 Definition of Done says "upload/list/
+  retrieve" only, unlike Phase 11's which explicitly said "edit/delete."
+  Deferred rather than added preemptively — can be added on request.
+- Size limit (`Settings.max_upload_size_bytes`, default 10 MB) is
+  enforced by reading the upload in 1 MB chunks and aborting as soon as
+  the running total exceeds the cap, before ever writing to storage —
+  bounds how much a client can force the server to buffer, regardless of
+  what size it actually claims to be sending.
 
 ## Known Issues
 
-- **Port 8001 also became stale/ghost-listener afflicted mid-session
-  (same syndrome as port 8000 — see below), discovered when
-  `/api/v1/health-notes` was missing from a freshly restarted server's
-  routes despite the source code being correct** (confirmed via a direct
-  `python -c "from app.main import app; app.openapi()"` in a brand-new
-  process, bypassing uvicorn entirely — the app itself was always
-  correct). `Get-NetTCPConnection` kept reporting a listener on 8001 even
-  after killing every matching process by real Windows PID. **Moved to
-  port 8002 for the remainder of this session**
-  (`tools/api-tester.html` updated accordingly). If this keeps recurring
-  on future ports, treat it as confirmation the fix is a machine restart,
-  not further troubleshooting — don't sink more time into it.
-- **Port 8000 is unreliable in this Windows session** (original
-  instance of the issue above) — after repeated server restarts during
-  development, the OS was left with a stale/ambiguous listening-socket
-  state that silently served responses from a dead process instead of
-  the freshly started one. `netstat`/`Get-NetTCPConnection` output should
-  not be trusted as ground truth while this persists — verify with
-  `curl http://127.0.0.1:<port>/openapi.json` after any restart instead.
-  This is host/session state, not a code or project issue — likely
-  resolves after a machine restart.
+- **Stale/ghost-listener port syndrome has now affected 8000, 8001, and
+  8002 across this Windows session — it recurs on essentially any port
+  reused enough times in one session, not something tied to a specific
+  port number.** Symptom each time: a freshly restarted server is
+  missing recently-added routes; `Get-NetTCPConnection` keeps reporting a
+  listener even after killing every matching process by real Windows
+  PID. Confirmed every time that the *application* is correct via a
+  direct in-process check (`python -c "from app.main import app;
+  app.openapi()"`, bypassing uvicorn entirely) before concluding it's the
+  OS, not the code. **Currently on port 8003** (`tools/api-tester.html`
+  updated accordingly). Given the pattern across four ports now, treat
+  any recurrence as confirmation this needs a machine restart — stop
+  troubleshooting it and just bump the port again, noting it here.
+  `netstat`/`Get-NetTCPConnection` should not be trusted as ground truth
+  for "what's actually being served" while this persists; verify with
+  `curl http://127.0.0.1:<port>/openapi.json` (or the in-process check
+  above) after any restart instead.
 
 ## Next Session
 
-Begin Phase 12 - Medical Document Vault: `MedicalDocument` model
-(document_type enum — PRESCRIPTION/LAB_REPORT/SCAN_REPORT/
-DISCHARGE_SUMMARY/DOCTOR_NOTE/OTHER — storage_key, original_filename,
-content_type, document_date, description). Local dev file storage is
-fine per the spec, but cleanly abstracted (a storage interface, not
-filesystem calls scattered through the route) so it can become real
-object storage later without a rewrite. Security is the crux of this
-phase: validate content type/size, generate safe random storage
-filenames server-side (never trust the client's original filename as a
-path — path traversal risk), and ensure downloads are ownership-checked,
-not served from an unrestricted public directory.
+Begin Phase 13 - Prescription Domain Model: treat prescriptions as
+healthcare domain objects, not only generic uploaded files. `Prescription`
+model (patient_id, optional document_id linking to an uploaded
+`MedicalDocument`, doctor_name, hospital_name, prescription_date, notes,
+source). CRUD scoped to patient. Later phases (16: AI extraction, 20:
+structured digital prescriptions) build on this, but don't implement
+those yet — this phase is just the domain object and basic CRUD.

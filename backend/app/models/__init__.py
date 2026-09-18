@@ -1,4 +1,5 @@
 from app.models.health_note import HealthNote
+from app.models.medical_document import MedicalDocument
 from app.models.medication_event import MedicationEvent
 from app.models.medication_schedule import MedicationSchedule
 from app.models.medicine import Medicine
@@ -8,6 +9,7 @@ from app.models.user import User
 
 __all__ = [
     "HealthNote",
+    "MedicalDocument",
     "MedicationEvent",
     "MedicationSchedule",
     "Medicine",
