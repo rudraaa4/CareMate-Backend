@@ -62,6 +62,17 @@
 </fieldset>
 
 <fieldset>
+  <legend>5. Medicines</legend>
+  <label>Name <input id="med-name" value="Metformin" /></label>
+  <label>Strength <input id="med-strength" value="500mg" /></label>
+  <button onclick="createMedicine()">POST /api/v1/medicines</button>
+  <button onclick="listMedicines()">GET /api/v1/medicines</button>
+  <label>Medicine ID (for get/archive below) <input id="med-id" value="1" /></label>
+  <button onclick="getMedicine()">GET /api/v1/medicines/:id</button>
+  <button onclick="archiveMedicine()">DELETE /api/v1/medicines/:id (archive)</button>
+</fieldset>
+
+<fieldset>
   <legend>Response log</legend>
   <div id="log">(nothing yet)</div>
 </fieldset>
@@ -162,6 +173,64 @@ async function patchProfile() {
     log("PATCH /profile", res.status, body);
   } catch (err) {
     log("PATCH /profile", "ERR", String(err));
+  }
+}
+
+function authHeaders(extra = {}) {
+  const headers = { ...extra };
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  return headers;
+}
+
+async function createMedicine() {
+  const name = document.getElementById("med-name").value;
+  const strength = document.getElementById("med-strength").value;
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/medicines`, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ name, strength }),
+    });
+    const body = await res.json();
+    log("POST /medicines", res.status, body);
+    if (res.ok) document.getElementById("med-id").value = body.id;
+  } catch (err) {
+    log("POST /medicines", "ERR", String(err));
+  }
+}
+
+async function listMedicines() {
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/medicines`, { headers: authHeaders() });
+    const body = await res.json();
+    log("GET /medicines", res.status, body);
+  } catch (err) {
+    log("GET /medicines", "ERR", String(err));
+  }
+}
+
+async function getMedicine() {
+  const id = document.getElementById("med-id").value;
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/medicines/${id}`, { headers: authHeaders() });
+    const body = await res.json();
+    log(`GET /medicines/${id}`, res.status, body);
+  } catch (err) {
+    log(`GET /medicines/${id}`, "ERR", String(err));
+  }
+}
+
+async function archiveMedicine() {
+  const id = document.getElementById("med-id").value;
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/medicines/${id}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
+    const body = await res.json();
+    log(`DELETE /medicines/${id}`, res.status, body);
+  } catch (err) {
+    log(`DELETE /medicines/${id}`, "ERR", String(err));
   }
 }
 </script>

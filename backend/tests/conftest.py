@@ -50,3 +50,13 @@ def clean_tables():
 @pytest.fixture()
 def client():
     return TestClient(app)
+
+
+def register_and_login(client, email="patient@example.com"):
+    """Shared across test files: register a fresh user and return auth
+    headers ready to use, so each test doesn't repeat this boilerplate."""
+    from tests.test_auth import VALID_PASSWORD, login, register
+
+    register(client, email=email)
+    token = login(client, email=email).json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}

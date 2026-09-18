@@ -1,10 +1,4 @@
-from tests.test_auth import VALID_PASSWORD, login, register
-
-
-def register_and_login(client, email="patient@example.com"):
-    register(client, email=email)
-    token = login(client, email=email).json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+from tests.conftest import register_and_login
 
 
 def test_profile_exists_automatically_after_registration(client):

@@ -1,6 +1,6 @@
 # CareMate Development Progress
 
-Current Phase: 4
+Current Phase: 5
 
 ## Completed
 
@@ -9,24 +9,23 @@ Current Phase: 4
 - [x] Phase 2 - PostgreSQL / SQLAlchemy / Alembic
 - [x] Phase 3 - User registration and authentication
 - [x] Phase 4 - Patient profile
+- [x] Phase 5 - Medicine management
 
 ## Current
 
-- [ ] Phase 5 - Medicine management
+- [ ] Phase 6 - Medication scheduling
 
 ### Current Tasks
 
-- [ ] Create Medicine model (belongs to a patient)
-- [ ] Create MedicineCreate/Update/Response schemas
-- [ ] POST /api/v1/medicines, GET /api/v1/medicines, GET /api/v1/medicines/{id}
-- [ ] PATCH /api/v1/medicines/{id}, archive/delete endpoint
-- [ ] Ownership check: Patient A must never read/modify Patient B's medicine
-- [ ] Explicit security test: create as A, attempt access as B, expect denial
+- [ ] Create MedicationSchedule model (belongs to a Medicine)
+- [ ] Create schemas
+- [ ] POST/GET /api/v1/medicines/{id}/schedules
+- [ ] PATCH /api/v1/schedules/{id}, archive schedule
+- [ ] Keep recurrence simple (don't over-engineer per spec)
+- [ ] Ownership check via the parent medicine's patient_id
 
 ## Not Started
 
-- [ ] Phase 6 - Medication scheduling
-- [ ] Phase 6 - Medication scheduling
 - [ ] Phase 7 - Medication events
 - [ ] Phase 8 - Adherence engine
 - [ ] Phase 9 - Medicine inventory
@@ -92,6 +91,22 @@ Current Phase: 4
 - Added a dev-only test page (`tools/api-tester.html`, outside `backend/`
   and `frontend/`) plus CORS support in `app/main.py`
   (`Settings.cors_origins`) so it can call the API from a different port.
+- `Medicine.patient_id` references `patient_profiles.id` (not `users.id`
+  directly) — matches the spec's data model: User -> PatientProfile ->
+  Medicine. `MedicineCreate`/`Update` schemas deliberately have no
+  `patient_id` field; it's always derived server-side from
+  `current_user.patient_profile.id` (spec section 9, rule 1).
+- Cross-patient access returns **404**, not 403, on
+  `GET/PATCH/DELETE /medicines/{id}` — a 403 would confirm the resource
+  exists, leaking information about another patient's data. 404 makes
+  "doesn't exist" and "exists but isn't yours" indistinguishable.
+- Ownership check factored into one `get_owned_medicine` dependency
+  (`app/api/routes/medicines.py`) reused by GET-one/PATCH/DELETE — the
+  pattern every future owned-resource (schedules, events, documents) will
+  repeat.
+- `DELETE /medicines/{id}` soft-deletes (`active = False`), returns the
+  updated resource (200, not 204) — history is needed later
+  (adherence/timeline), so nothing is actually removed from the DB.
 
 ## Known Issues
 
@@ -109,11 +124,11 @@ Current Phase: 4
 
 ## Next Session
 
-Begin Phase 5 - Medicine Management: create the `Medicine` model (belongs
-to a `PatientProfile`), schemas, and CRUD endpoints
-(`POST/GET /api/v1/medicines`, `GET/PATCH /api/v1/medicines/{id}`, plus an
-archive/deactivate endpoint). This phase's critical requirement: a
-security test proving Patient A cannot read or modify Patient B's
-medicine via its ID — unlike the profile endpoints, these DO take an ID
-in the URL, so ownership must be checked explicitly in the route/query,
-not just structurally.
+Begin Phase 6 - Medication Scheduling: create the `MedicationSchedule`
+model (belongs to a `Medicine` — represents WHEN a medicine is taken,
+separate from WHAT it is), schemas, and
+`POST/GET /api/v1/medicines/{id}/schedules`,
+`PATCH/archive /api/v1/schedules/{id}`. Keep recurrence simple per the
+spec ("do not over-engineer initially") — e.g. a list of times of day.
+Ownership flows through the parent medicine, reusing the same
+`get_owned_medicine`-style pattern from Phase 5.
