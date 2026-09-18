@@ -1,0 +1,3 @@
+# Backend dependencies for CareMate.
+# Populated starting in Phase 1 (FastAPI + Uvicorn).
+# Managed with pip + a virtual environment (see DEVELOPMENT_PROGRESS.md > Decisions).
