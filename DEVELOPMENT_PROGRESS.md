@@ -1,6 +1,6 @@
 # CareMate Development Progress
 
-Current Phase: 6
+Current Phase: 7
 
 ## Completed
 
@@ -11,24 +11,22 @@ Current Phase: 6
 - [x] Phase 4 - Patient profile
 - [x] Phase 5 - Medicine management
 - [x] Phase 6 - Medication scheduling
+- [x] Phase 7 - Medication events
 
 ## Current
 
-- [ ] Phase 7 - Medication events
+- [ ] Phase 8 - Adherence engine
 
 ### Current Tasks
 
-- [ ] Create MedicationEvent model (belongs to a MedicationSchedule)
-- [ ] Decide event generation strategy (spec: "generate upcoming events safely")
-- [ ] Define status semantics explicitly: UPCOMING, TAKEN, MISSED, SKIPPED, DELAYED
-- [ ] GET /api/v1/medication-events/today
-- [ ] PATCH /api/v1/medication-events/{id}/status (mark taken/skipped/etc.)
-- [ ] Ownership check (three-level chain: Event -> Schedule -> Medicine -> Patient)
-- [ ] Prevent cross-patient event access
+- [ ] AdherenceService (first real service-layer module in the project)
+- [ ] Document the adherence formula explicitly (e.g. taken / eligible_expected_doses * 100)
+- [ ] Decide and document how SKIPPED/DELAYED/MISSED each count toward the formula
+- [ ] get_daily_summary() / get_weekly_summary()
+- [ ] Tests with known event fixtures producing predictable results
 
 ## Not Started
 
-- [ ] Phase 8 - Adherence engine
 - [ ] Phase 9 - Medicine inventory
 - [ ] Phase 10 - Patient dashboard
 - [ ] Phases 11+ - see CAREMATE_MASTER_SPEC.md
@@ -117,6 +115,30 @@ Current Phase: 6
   `get_owned_schedule` dependency that SQL-joins schedule -> medicine to
   check `patient_id`, since the schedule table has nothing to filter on
   directly.
+- **Event generation is lazy, not cron/background-driven** (no scheduler
+  exists yet — deliberately deferred to Phase 24 per the spec). Every call
+  to `GET /medication-events/today` ensures today's events exist for all
+  active schedules first (idempotent — DB unique constraint on
+  `(schedule_id, scheduled_at)` backs this up, not just app logic), then
+  returns them.
+- **Status semantics, explicitly decided and documented in
+  `app/api/routes/medication_events.py`:**
+  `TAKEN`/`DELAYED`/`SKIPPED` are patient-confirmed and terminal — once
+  set, `PATCH .../status` refuses further changes (409). `UPCOMING` and
+  `MISSED` are system-inferred and never terminal. Marking taken always
+  uses server time for `actual_taken_at` (never client-supplied); more
+  than `DELAYED_THRESHOLD` (30 min) late becomes `DELAYED` instead of
+  `TAKEN`, automatically — not something the client chooses directly. An
+  `UPCOMING` event more than `MISSED_THRESHOLD` (2h) past its scheduled
+  time flips to `MISSED` lazily, the next time it's read. `MISSED` can
+  still transition to `TAKEN`/`DELAYED`/`SKIPPED` (a late dose should
+  still be logged), unlike the three terminal states.
+- **Timezone simplification:** `_local_now()` in
+  `app/api/routes/medication_events.py` uses the server's local timezone
+  for all "today"/"now" calculations — assumes every patient is in the
+  same timezone. The spec (section 16) explicitly flags this as something
+  not to assume forever; revisit when/if CareMate supports patients
+  across timezones. Not needed yet for a single-region prototype.
 
 ## Known Issues
 
@@ -134,12 +156,12 @@ Current Phase: 6
 
 ## Next Session
 
-Begin Phase 7 - Medication Events: create the `MedicationEvent` model
-(belongs to a `MedicationSchedule` — represents what ACTUALLY happened,
-e.g. TAKEN/MISSED/SKIPPED, vs. what was merely scheduled). Decide and
-document the event-generation strategy (how "today's events" get created
-from active schedules) and status transition rules explicitly before
-implementing. `GET /api/v1/medication-events/today` and
-`PATCH /api/v1/medication-events/{id}/status`. Ownership is now a
-three-level chain (Event -> Schedule -> Medicine -> Patient) — same
-join-based pattern as Phase 6's `get_owned_schedule`, one level deeper.
+Begin Phase 8 - Adherence Engine: turn MedicationEvent history into
+deterministic adherence metrics (expected/taken/missed/skipped/delayed
+doses, adherence percentage, daily/weekly summaries). This is the
+project's first genuinely "substantial" business logic — introduce a real
+service layer here (`app/services/adherence_service.py`), as previously
+decided in Phase 3's notes. Must explicitly document the formula and how
+each status counts (e.g. does DELAYED count as adherent? Does SKIPPED
+count differently from MISSED?) before implementing — the spec is
+explicit that this must not be a silent decision.

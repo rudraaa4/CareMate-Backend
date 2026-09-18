@@ -83,6 +83,14 @@
 </fieldset>
 
 <fieldset>
+  <legend>7. Medication Events</legend>
+  <button onclick="getTodaysEvents()">GET /medication-events/today</button>
+  <label>Event ID (for status update below) <input id="event-id" value="1" /></label>
+  <button onclick="markEventTaken()">PATCH .../status (taken)</button>
+  <button onclick="markEventSkipped()">PATCH .../status (skipped)</button>
+</fieldset>
+
+<fieldset>
   <legend>Response log</legend>
   <div id="log">(nothing yet)</div>
 </fieldset>
@@ -302,6 +310,40 @@ async function archiveSchedule() {
   } catch (err) {
     log("DELETE /schedules", "ERR", String(err));
   }
+}
+
+async function getTodaysEvents() {
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/medication-events/today`, { headers: authHeaders() });
+    const body = await res.json();
+    log("GET /medication-events/today", res.status, body);
+    if (res.ok && body.length > 0) document.getElementById("event-id").value = body[0].id;
+  } catch (err) {
+    log("GET /medication-events/today", "ERR", String(err));
+  }
+}
+
+async function patchEventStatus(newStatus) {
+  const eventId = document.getElementById("event-id").value;
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/medication-events/${eventId}/status`, {
+      method: "PATCH",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ status: newStatus }),
+    });
+    const body = await res.json();
+    log(`PATCH /medication-events/${eventId}/status`, res.status, body);
+  } catch (err) {
+    log("PATCH .../status", "ERR", String(err));
+  }
+}
+
+function markEventTaken() {
+  patchEventStatus("taken");
+}
+
+function markEventSkipped() {
+  patchEventStatus("skipped");
 }
 </script>
 
