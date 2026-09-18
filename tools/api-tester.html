@@ -73,6 +73,16 @@
 </fieldset>
 
 <fieldset>
+  <legend>6. Schedules (for the medicine ID above)</legend>
+  <label>Time of day <input id="sched-time" type="time" value="08:00" /></label>
+  <button onclick="createSchedule()">POST /medicines/:id/schedules</button>
+  <button onclick="listSchedules()">GET /medicines/:id/schedules</button>
+  <label>Schedule ID (for patch/archive below) <input id="sched-id" value="1" /></label>
+  <button onclick="patchSchedule()">PATCH /schedules/:id (set time above)</button>
+  <button onclick="archiveSchedule()">DELETE /schedules/:id (archive)</button>
+</fieldset>
+
+<fieldset>
   <legend>Response log</legend>
   <div id="log">(nothing yet)</div>
 </fieldset>
@@ -231,6 +241,66 @@ async function archiveMedicine() {
     log(`DELETE /medicines/${id}`, res.status, body);
   } catch (err) {
     log(`DELETE /medicines/${id}`, "ERR", String(err));
+  }
+}
+
+async function createSchedule() {
+  const medId = document.getElementById("med-id").value;
+  const time_of_day = document.getElementById("sched-time").value + ":00";
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/medicines/${medId}/schedules`, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ time_of_day }),
+    });
+    const body = await res.json();
+    log(`POST /medicines/${medId}/schedules`, res.status, body);
+    if (res.ok) document.getElementById("sched-id").value = body.id;
+  } catch (err) {
+    log("POST .../schedules", "ERR", String(err));
+  }
+}
+
+async function listSchedules() {
+  const medId = document.getElementById("med-id").value;
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/medicines/${medId}/schedules`, {
+      headers: authHeaders(),
+    });
+    const body = await res.json();
+    log(`GET /medicines/${medId}/schedules`, res.status, body);
+  } catch (err) {
+    log("GET .../schedules", "ERR", String(err));
+  }
+}
+
+async function patchSchedule() {
+  const schedId = document.getElementById("sched-id").value;
+  const time_of_day = document.getElementById("sched-time").value + ":00";
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/schedules/${schedId}`, {
+      method: "PATCH",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ time_of_day }),
+    });
+    const body = await res.json();
+    log(`PATCH /schedules/${schedId}`, res.status, body);
+  } catch (err) {
+    log("PATCH /schedules", "ERR", String(err));
+  }
+}
+
+async function archiveSchedule() {
+  const schedId = document.getElementById("sched-id").value;
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/schedules/${schedId}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
+    const body = await res.json();
+    log(`DELETE /schedules/${schedId}`, res.status, body);
+  } catch (err) {
+    log("DELETE /schedules", "ERR", String(err));
   }
 }
 </script>

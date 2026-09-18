@@ -1,6 +1,6 @@
 # CareMate Development Progress
 
-Current Phase: 5
+Current Phase: 6
 
 ## Completed
 
@@ -10,23 +10,24 @@ Current Phase: 5
 - [x] Phase 3 - User registration and authentication
 - [x] Phase 4 - Patient profile
 - [x] Phase 5 - Medicine management
+- [x] Phase 6 - Medication scheduling
 
 ## Current
 
-- [ ] Phase 6 - Medication scheduling
+- [ ] Phase 7 - Medication events
 
 ### Current Tasks
 
-- [ ] Create MedicationSchedule model (belongs to a Medicine)
-- [ ] Create schemas
-- [ ] POST/GET /api/v1/medicines/{id}/schedules
-- [ ] PATCH /api/v1/schedules/{id}, archive schedule
-- [ ] Keep recurrence simple (don't over-engineer per spec)
-- [ ] Ownership check via the parent medicine's patient_id
+- [ ] Create MedicationEvent model (belongs to a MedicationSchedule)
+- [ ] Decide event generation strategy (spec: "generate upcoming events safely")
+- [ ] Define status semantics explicitly: UPCOMING, TAKEN, MISSED, SKIPPED, DELAYED
+- [ ] GET /api/v1/medication-events/today
+- [ ] PATCH /api/v1/medication-events/{id}/status (mark taken/skipped/etc.)
+- [ ] Ownership check (three-level chain: Event -> Schedule -> Medicine -> Patient)
+- [ ] Prevent cross-patient event access
 
 ## Not Started
 
-- [ ] Phase 7 - Medication events
 - [ ] Phase 8 - Adherence engine
 - [ ] Phase 9 - Medicine inventory
 - [ ] Phase 10 - Patient dashboard
@@ -107,6 +108,15 @@ Current Phase: 5
 - `DELETE /medicines/{id}` soft-deletes (`active = False`), returns the
   updated resource (200, not 204) — history is needed later
   (adherence/timeline), so nothing is actually removed from the DB.
+- `MedicationSchedule` has no `patient_id` of its own — one row per
+  time-of-day (e.g. Metformin 08:00 and 20:00 are two rows sharing one
+  `medicine_id`), `frequency` is an enum with only `DAILY` defined so far
+  (spec: don't over-engineer recurrence yet). Ownership flows through the
+  parent medicine: `POST/GET .../schedules` reuse Phase 5's
+  `get_owned_medicine`; `PATCH/DELETE /schedules/{id}` use a new
+  `get_owned_schedule` dependency that SQL-joins schedule -> medicine to
+  check `patient_id`, since the schedule table has nothing to filter on
+  directly.
 
 ## Known Issues
 
@@ -124,11 +134,12 @@ Current Phase: 5
 
 ## Next Session
 
-Begin Phase 6 - Medication Scheduling: create the `MedicationSchedule`
-model (belongs to a `Medicine` — represents WHEN a medicine is taken,
-separate from WHAT it is), schemas, and
-`POST/GET /api/v1/medicines/{id}/schedules`,
-`PATCH/archive /api/v1/schedules/{id}`. Keep recurrence simple per the
-spec ("do not over-engineer initially") — e.g. a list of times of day.
-Ownership flows through the parent medicine, reusing the same
-`get_owned_medicine`-style pattern from Phase 5.
+Begin Phase 7 - Medication Events: create the `MedicationEvent` model
+(belongs to a `MedicationSchedule` — represents what ACTUALLY happened,
+e.g. TAKEN/MISSED/SKIPPED, vs. what was merely scheduled). Decide and
+document the event-generation strategy (how "today's events" get created
+from active schedules) and status transition rules explicitly before
+implementing. `GET /api/v1/medication-events/today` and
+`PATCH /api/v1/medication-events/{id}/status`. Ownership is now a
+three-level chain (Event -> Schedule -> Medicine -> Patient) — same
+join-based pattern as Phase 6's `get_owned_schedule`, one level deeper.

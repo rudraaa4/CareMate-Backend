@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.api.routes.auth import router as auth_router
 from app.api.routes.medicines import router as medicines_router
 from app.api.routes.profile import router as profile_router
+from app.api.routes.schedules import router as schedules_router
 from app.api.routes.users import router as users_router
 from app.core.config import settings
 from app.core.database import get_db
@@ -29,6 +30,7 @@ app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(profile_router)
 app.include_router(medicines_router)
+app.include_router(schedules_router)
 
 
 @app.get("/api/health")
