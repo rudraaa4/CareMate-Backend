@@ -52,6 +52,18 @@ def client():
     return TestClient(app)
 
 
+@pytest.fixture()
+def db():
+    """A raw session bound to the test DB, for tests that need to seed
+    fixtures directly (bypassing the API) or call a service class
+    directly rather than through an HTTP route."""
+    session = TestingSessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
 def register_and_login(client, email="patient@example.com"):
     """Shared across test files: register a fresh user and return auth
     headers ready to use, so each test doesn't repeat this boilerplate."""

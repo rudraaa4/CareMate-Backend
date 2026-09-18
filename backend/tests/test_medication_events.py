@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from app.api.routes.medication_events import _local_now
+from app.core.timezone import local_now as _local_now
 from app.models.medication_event import MedicationEvent
 from tests.conftest import TestingSessionLocal, register_and_login
 from tests.test_medicines import create_medicine

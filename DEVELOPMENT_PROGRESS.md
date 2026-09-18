@@ -1,6 +1,6 @@
 # CareMate Development Progress
 
-Current Phase: 7
+Current Phase: 8
 
 ## Completed
 
@@ -12,22 +12,21 @@ Current Phase: 7
 - [x] Phase 5 - Medicine management
 - [x] Phase 6 - Medication scheduling
 - [x] Phase 7 - Medication events
+- [x] Phase 8 - Adherence engine
 
 ## Current
 
-- [ ] Phase 8 - Adherence engine
+- [ ] Phase 9 - Medicine inventory
 
 ### Current Tasks
 
-- [ ] AdherenceService (first real service-layer module in the project)
-- [ ] Document the adherence formula explicitly (e.g. taken / eligible_expected_doses * 100)
-- [ ] Decide and document how SKIPPED/DELAYED/MISSED each count toward the formula
-- [ ] get_daily_summary() / get_weekly_summary()
-- [ ] Tests with known event fixtures producing predictable results
+- [ ] MedicineInventory model (current_quantity, units_per_dose, low_stock_threshold)
+- [ ] MedicationEventService -> InventoryService: decrement exactly once when an event becomes TAKEN
+- [ ] Guard against double-decrementing if a TAKEN event is edited/re-processed
+- [ ] Estimated doses/days remaining, low-stock boolean
+- [ ] Tests proving a dose is decremented exactly once even under edit/retry
 
 ## Not Started
-
-- [ ] Phase 9 - Medicine inventory
 - [ ] Phase 10 - Patient dashboard
 - [ ] Phases 11+ - see CAREMATE_MASTER_SPEC.md
 
@@ -133,12 +132,37 @@ Current Phase: 7
   time flips to `MISSED` lazily, the next time it's read. `MISSED` can
   still transition to `TAKEN`/`DELAYED`/`SKIPPED` (a late dose should
   still be logged), unlike the three terminal states.
-- **Timezone simplification:** `_local_now()` in
-  `app/api/routes/medication_events.py` uses the server's local timezone
-  for all "today"/"now" calculations — assumes every patient is in the
-  same timezone. The spec (section 16) explicitly flags this as something
-  not to assume forever; revisit when/if CareMate supports patients
-  across timezones. Not needed yet for a single-region prototype.
+- **Timezone simplification:** `local_now()` (`app/core/timezone.py`) uses
+  the server's local timezone for all "today"/"now" calculations —
+  assumes every patient is in the same timezone. The spec (section 16)
+  explicitly flags this as something not to assume forever; revisit
+  when/if CareMate supports patients across timezones. Not needed yet for
+  a single-region prototype.
+- **Phase 8 refactor:** promoted the Phase 7 status logic (missed
+  detection, event generation, delayed classification) out of
+  `app/api/routes/medication_events.py` and into
+  `app/services/medication_event_service.py`. This wasn't optional
+  cleanup — `AdherenceService` needs the exact same "is this event really
+  MISSED" rule the HTTP routes use, even for events nobody has fetched
+  over the API yet (so their status is still stale `UPCOMING` in the DB).
+  Needing identical logic in two places was the signal to promote it.
+  `app/core/timezone.py` (`local_now()`) was factored out the same way,
+  for the same reason (previously duplicated as a private function).
+- **Adherence formula, decided and documented explicitly in
+  `app/services/adherence_service.py`:**
+  `adherence % = taken / eligible_expected_doses * 100`. `UPCOMING`
+  events are excluded (not due yet). `DELAYED` counts as taken (the dose
+  *was* taken; lateness is a separate signal, tracked for Phase 28, not
+  this phase). `MISSED` and `SKIPPED` both count as eligible-but-not-taken
+  (correctly reduce the percentage) but are reported as separate counts
+  so the distinction between "passive" and "deliberate" non-adherence
+  isn't lost. Zero eligible doses yields `adherence_percentage = None`,
+  not 0 or 100 — a brand-new patient has no adherence data, which is
+  different from having failed or succeeded.
+- **No HTTP endpoint this phase, deliberately** — the spec's Phase 8
+  section has no "APIs" heading, only a service + a test-driven
+  Definition of Done. Adherence gets exposed over HTTP starting Phase 10
+  (dashboard). Verified via `pytest` only this phase, not the tester tool.
 
 ## Known Issues
 
@@ -156,12 +180,11 @@ Current Phase: 7
 
 ## Next Session
 
-Begin Phase 8 - Adherence Engine: turn MedicationEvent history into
-deterministic adherence metrics (expected/taken/missed/skipped/delayed
-doses, adherence percentage, daily/weekly summaries). This is the
-project's first genuinely "substantial" business logic — introduce a real
-service layer here (`app/services/adherence_service.py`), as previously
-decided in Phase 3's notes. Must explicitly document the formula and how
-each status counts (e.g. does DELAYED count as adherent? Does SKIPPED
-count differently from MISSED?) before implementing — the spec is
-explicit that this must not be a silent decision.
+Begin Phase 9 - Medicine Inventory: create `MedicineInventory`
+(`current_quantity`, `units_per_dose`, `low_stock_threshold`), one-to-one
+with `Medicine`. When an event becomes TAKEN, decrement inventory via a
+service call (`MedicationEventService -> InventoryService`, per spec) —
+the tricky part flagged by the spec itself: guard against decrementing
+more than once if a TAKEN event is edited/reprocessed. Add estimated
+doses/days remaining and a low-stock boolean. No AI/Gemini needed (spec
+is explicit: this is pure arithmetic).
