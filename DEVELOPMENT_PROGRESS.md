@@ -1,32 +1,31 @@
 # CareMate Development Progress
 
-Current Phase: 0
+Current Phase: 1
 
 ## Completed
 
-- [ ] Phase 0 - Repository foundation
+- [x] Phase 0 - Repository foundation
+- [x] Phase 1 - FastAPI foundation
 
 ## Current
 
-- [ ] Phase 0 - Repository foundation
+- [ ] Phase 2 - PostgreSQL / SQLAlchemy / Alembic
 
 ### Current Tasks
 
-- [x] Initialize Git repository
-- [x] Add CAREMATE_MASTER_SPEC.md
-- [x] Create DEVELOPMENT_PROGRESS.md
-- [x] Add README.md
-- [x] Add .gitignore
-- [x] Add .env.example
-- [x] Create backend directory
-- [x] Decide dependency management approach
-- [x] Document local development commands
-- [ ] Confirm repo starts cleanly / first commit made
+- [ ] Install PostgreSQL locally / configure dev instance
+- [ ] Create CareMate database
+- [ ] Configure DATABASE_URL via environment variables
+- [ ] Create app/core/config.py
+- [ ] Configure SQLAlchemy engine/session
+- [ ] Add get_db dependency
+- [ ] Configure declarative model base
+- [ ] Introduce Alembic
+- [ ] Verify migrations run
 
 ## Not Started
 
-- [ ] Phase 1 - FastAPI foundation
-- [ ] Phase 2 - PostgreSQL / SQLAlchemy / Alembic
+- [ ] Phase 3 - User registration and authentication
 - [ ] Phase 3 - User registration and authentication
 - [ ] Phase 4 - Patient profile
 - [ ] Phase 5 - Medicine management
@@ -48,6 +47,11 @@ Current Phase: 0
   feature-based layout (`core/`, `models/`, `schemas/`, `api/routes/`, etc.),
   introduced incrementally — we do not create empty placeholder folders before
   they hold real code.
+- Deleted an unrelated pre-existing prototype at
+  `C:\Users\Rudra\.gemini\antigravity-ide\scratch\caremate-backend`
+  (built earlier with a different tool, further along than our Phase 0/1 but
+  not following the phased spec) at the user's request, since it was
+  occupying port 8000 and unrelated to this repository.
 
 ## Known Issues
 
@@ -55,6 +59,7 @@ None yet.
 
 ## Next Session
 
-Begin Phase 1 - FastAPI Foundation: create a virtual environment inside
-`backend/`, install FastAPI + Uvicorn, create `app/main.py` with a
-`GET /api/health` endpoint, and add the first pytest test.
+Begin Phase 2 - PostgreSQL, SQLAlchemy and Alembic: install/configure a local
+PostgreSQL instance, create the `caremate` database, add `app/core/config.py`
+and `app/core/database.py` (engine, session, `get_db` dependency, declarative
+base), then introduce Alembic and verify migrations run.
