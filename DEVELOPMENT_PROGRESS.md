@@ -1,6 +1,6 @@
 # CareMate Development Progress
 
-Current Phase: 8
+Current Phase: 9
 
 ## Completed
 
@@ -13,21 +13,22 @@ Current Phase: 8
 - [x] Phase 6 - Medication scheduling
 - [x] Phase 7 - Medication events
 - [x] Phase 8 - Adherence engine
+- [x] Phase 9 - Medicine inventory
 
 ## Current
 
-- [ ] Phase 9 - Medicine inventory
+- [ ] Phase 10 - Patient dashboard
 
 ### Current Tasks
 
-- [ ] MedicineInventory model (current_quantity, units_per_dose, low_stock_threshold)
-- [ ] MedicationEventService -> InventoryService: decrement exactly once when an event becomes TAKEN
-- [ ] Guard against double-decrementing if a TAKEN event is edited/re-processed
-- [ ] Estimated doses/days remaining, low-stock boolean
-- [ ] Tests proving a dose is decremented exactly once even under edit/retry
+- [ ] One aggregating GET /api/v1/dashboard endpoint
+- [ ] Today's scheduled/taken/remaining counts (reuse Phase 7 event data)
+- [ ] adherence_percentage (reuse AdherenceService, no duplicated logic)
+- [ ] low_stock_count (reuse InventoryService)
+- [ ] active_medicines count
+- [ ] Should NOT duplicate business logic — this phase aggregates, doesn't recalculate
 
 ## Not Started
-- [ ] Phase 10 - Patient dashboard
 - [ ] Phases 11+ - see CAREMATE_MASTER_SPEC.md
 
 ## Decisions
@@ -163,6 +164,31 @@ Current Phase: 8
   section has no "APIs" heading, only a service + a test-driven
   Definition of Done. Adherence gets exposed over HTTP starting Phase 10
   (dashboard). Verified via `pytest` only this phase, not the tester tool.
+- **Inventory is opt-in per medicine, not auto-created.** Unlike
+  `PatientProfile` (every user gets one automatically — there's no
+  meaningful "no profile" state), an auto-created empty inventory would
+  immediately show "0 remaining, low stock" for every medicine, which is
+  noise, not help. `POST /medicines/{id}/inventory` sets it up explicitly
+  with real starting numbers; `GET`/`PATCH` 404 until that's done.
+- **Double-decrement guard, and its honest limit:** inventory only
+  decrements inside `medication_event_service.mark_taken()`, called only
+  from the branch of `update_event_status` that's unreachable once an
+  event is already `TAKEN`/`DELAYED`/`SKIPPED` (Phase 7's terminal-status
+  409 guard) — so under normal sequential use, a given event can decrement
+  at most once, verified by a test that PATCHes taken twice and checks
+  quantity only dropped once. **Not fully closed:** a true concurrent race
+  (two simultaneous requests both reading "not yet terminal" before either
+  commits) isn't defended against — that needs row-level locking
+  (`SELECT ... FOR UPDATE`) or an optimistic-concurrency version column,
+  which is Phase 32 hardening, not asked for here. Documented rather than
+  silently left as a gap.
+- `estimated_days_remaining` divides doses-remaining by the count of
+  *active* schedules for the medicine (each = 1 dose/day, since Phase 6
+  only supports `DAILY` frequency so far) — `None` when there's no active
+  schedule to divide by, rather than a division-by-zero or a misleading 0.
+- Decrementing clamps `current_quantity` at 0 (never negative) — logging
+  more doses than physically remained shouldn't produce a confusing
+  negative stock count.
 
 ## Known Issues
 
@@ -180,11 +206,10 @@ Current Phase: 8
 
 ## Next Session
 
-Begin Phase 9 - Medicine Inventory: create `MedicineInventory`
-(`current_quantity`, `units_per_dose`, `low_stock_threshold`), one-to-one
-with `Medicine`. When an event becomes TAKEN, decrement inventory via a
-service call (`MedicationEventService -> InventoryService`, per spec) —
-the tricky part flagged by the spec itself: guard against decrementing
-more than once if a TAKEN event is edited/reprocessed. Add estimated
-doses/days remaining and a low-stock boolean. No AI/Gemini needed (spec
-is explicit: this is pure arithmetic).
+Begin Phase 10 - Patient Dashboard: one aggregating
+`GET /api/v1/dashboard` endpoint combining today's scheduled/taken/
+remaining event counts, `AdherenceService.get_daily_summary()`,
+`InventoryService`'s low-stock count, and active medicine count. Per the
+spec's Definition of Done, this must aggregate existing services, not
+duplicate their logic — a good test of whether Phases 7-9's service
+layer was actually factored correctly.

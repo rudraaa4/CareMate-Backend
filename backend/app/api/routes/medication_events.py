@@ -13,8 +13,8 @@ from app.models.user import User
 from app.schemas.medication_event import MedicationEventResponse, MedicationEventStatusUpdate
 from app.services.medication_event_service import (
     TERMINAL_STATUSES,
-    classify_taken_status,
     generate_todays_events,
+    mark_taken,
     refresh_missed_statuses,
 )
 
@@ -87,9 +87,7 @@ def update_event_status(
         )
 
     if status_in.status == MedicationEventStatus.TAKEN:
-        now = local_now()
-        event.actual_taken_at = now
-        event.status = classify_taken_status(event.scheduled_at, now)
+        mark_taken(event, db)
     else:
         event.status = MedicationEventStatus.SKIPPED
 

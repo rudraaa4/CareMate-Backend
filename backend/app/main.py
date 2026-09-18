@@ -4,6 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.api.routes.auth import router as auth_router
+from app.api.routes.inventory import router as inventory_router
 from app.api.routes.medication_events import router as medication_events_router
 from app.api.routes.medicines import router as medicines_router
 from app.api.routes.profile import router as profile_router
@@ -33,6 +34,7 @@ app.include_router(profile_router)
 app.include_router(medicines_router)
 app.include_router(schedules_router)
 app.include_router(medication_events_router)
+app.include_router(inventory_router)
 
 
 @app.get("/api/health")

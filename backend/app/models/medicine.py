@@ -10,6 +10,7 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.medication_schedule import MedicationSchedule
+    from app.models.medicine_inventory import MedicineInventory
     from app.models.patient_profile import PatientProfile
 
 
@@ -43,4 +44,9 @@ class Medicine(Base):
     patient: Mapped["PatientProfile"] = relationship(back_populates="medicines")
     schedules: Mapped[list["MedicationSchedule"]] = relationship(
         back_populates="medicine", cascade="all, delete-orphan"
+    )
+    # Opt-in: a Medicine may have no inventory record at all (tracking
+    # isn't set up for it yet) — this stays None in that case.
+    inventory: Mapped["MedicineInventory | None"] = relationship(
+        back_populates="medicine", uselist=False, cascade="all, delete-orphan"
     )

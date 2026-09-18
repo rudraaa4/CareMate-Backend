@@ -90,3 +90,21 @@ def classify_taken_status(scheduled_at: datetime, taken_at: datetime) -> Medicat
     if taken_at - scheduled_at > DELAYED_THRESHOLD:
         return MedicationEventStatus.DELAYED
     return MedicationEventStatus.TAKEN
+
+
+def mark_taken(event: MedicationEvent, db: Session) -> None:
+    """MedicationEventService -> InventoryService, per the spec's own
+    description of this flow. Mutates event in place (status,
+    actual_taken_at) and decrements the medicine's inventory if it has
+    one. Callers must only invoke this when event.status is not already
+    in TERMINAL_STATUSES (see the route's guard) — that's what makes this
+    reachable at most once per event, so inventory is never decremented
+    twice for the same dose.
+    """
+    from app.services.inventory_service import InventoryService  # avoid a circular import
+
+    now = local_now()
+    event.actual_taken_at = now
+    event.status = classify_taken_status(event.scheduled_at, now)
+
+    InventoryService(db).decrement_for_taken_event(event.schedule.medicine_id)

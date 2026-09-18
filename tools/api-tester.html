@@ -91,6 +91,16 @@
 </fieldset>
 
 <fieldset>
+  <legend>8. Inventory (for the medicine ID in section 5)</legend>
+  <label>Current quantity <input id="inv-quantity" value="30" /></label>
+  <label>Units per dose <input id="inv-units" value="1" /></label>
+  <label>Low stock threshold <input id="inv-threshold" value="5" /></label>
+  <button onclick="createInventory()">POST .../inventory</button>
+  <button onclick="getInventory()">GET .../inventory</button>
+  <button onclick="patchInventory()">PATCH .../inventory (set quantity above)</button>
+</fieldset>
+
+<fieldset>
   <legend>Response log</legend>
   <div id="log">(nothing yet)</div>
 </fieldset>
@@ -344,6 +354,57 @@ function markEventTaken() {
 
 function markEventSkipped() {
   patchEventStatus("skipped");
+}
+
+function inventoryPayload() {
+  return {
+    current_quantity: Number(document.getElementById("inv-quantity").value),
+    units_per_dose: Number(document.getElementById("inv-units").value),
+    low_stock_threshold: Number(document.getElementById("inv-threshold").value),
+  };
+}
+
+async function createInventory() {
+  const medId = document.getElementById("med-id").value;
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/medicines/${medId}/inventory`, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(inventoryPayload()),
+    });
+    const body = await res.json();
+    log(`POST /medicines/${medId}/inventory`, res.status, body);
+  } catch (err) {
+    log("POST .../inventory", "ERR", String(err));
+  }
+}
+
+async function getInventory() {
+  const medId = document.getElementById("med-id").value;
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/medicines/${medId}/inventory`, {
+      headers: authHeaders(),
+    });
+    const body = await res.json();
+    log(`GET /medicines/${medId}/inventory`, res.status, body);
+  } catch (err) {
+    log("GET .../inventory", "ERR", String(err));
+  }
+}
+
+async function patchInventory() {
+  const medId = document.getElementById("med-id").value;
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/medicines/${medId}/inventory`, {
+      method: "PATCH",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ current_quantity: Number(document.getElementById("inv-quantity").value) }),
+    });
+    const body = await res.json();
+    log(`PATCH /medicines/${medId}/inventory`, res.status, body);
+  } catch (err) {
+    log("PATCH .../inventory", "ERR", String(err));
+  }
 }
 </script>
 
