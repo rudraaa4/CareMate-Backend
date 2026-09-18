@@ -101,6 +101,11 @@
 </fieldset>
 
 <fieldset>
+  <legend>9. Dashboard</legend>
+  <button onclick="getDashboard()">GET /dashboard</button>
+</fieldset>
+
+<fieldset>
   <legend>Response log</legend>
   <div id="log">(nothing yet)</div>
 </fieldset>
@@ -404,6 +409,16 @@ async function patchInventory() {
     log(`PATCH /medicines/${medId}/inventory`, res.status, body);
   } catch (err) {
     log("PATCH .../inventory", "ERR", String(err));
+  }
+}
+
+async function getDashboard() {
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/dashboard`, { headers: authHeaders() });
+    const body = await res.json();
+    log("GET /dashboard", res.status, body);
+  } catch (err) {
+    log("GET /dashboard", "ERR", String(err));
   }
 }
 </script>

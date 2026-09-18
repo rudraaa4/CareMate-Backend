@@ -68,6 +68,35 @@ def generate_todays_events(patient_id: int, db: Session) -> None:
     db.commit()
 
 
+def get_or_create_todays_events(patient_id: int, db: Session) -> list[MedicationEvent]:
+    """Ensures today's events exist, then returns them, missed statuses
+    refreshed. Used by both GET /medication-events/today and the Phase 10
+    dashboard — factored out here specifically so the dashboard doesn't
+    duplicate this query, per that phase's Definition of Done."""
+    generate_todays_events(patient_id, db)
+
+    today = date.today()
+    local_tz = local_now().tzinfo
+    range_start = datetime.combine(today, datetime.min.time(), tzinfo=local_tz)
+    range_end = range_start + timedelta(days=1)
+
+    events = (
+        db.query(MedicationEvent)
+        .join(MedicationSchedule, MedicationEvent.schedule_id == MedicationSchedule.id)
+        .join(Medicine, MedicationSchedule.medicine_id == Medicine.id)
+        .filter(
+            Medicine.patient_id == patient_id,
+            MedicationEvent.scheduled_at >= range_start,
+            MedicationEvent.scheduled_at < range_end,
+        )
+        .order_by(MedicationEvent.scheduled_at)
+        .all()
+    )
+
+    refresh_missed_statuses(events, db)
+    return events
+
+
 def refresh_missed_statuses(events: list[MedicationEvent], db: Session) -> None:
     """Lazily flips any UPCOMING event that's past the missed threshold.
     No cron job — this runs whenever events are read (see Phase 24 for why

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from app.models.medication_schedule import MedicationSchedule
+from app.models.medicine import Medicine
 from app.models.medicine_inventory import MedicineInventory
 
 
@@ -70,3 +71,15 @@ class InventoryService:
             estimated_days_remaining=days_remaining,
             low_stock=inventory.current_quantity <= inventory.low_stock_threshold,
         )
+
+    def count_low_stock_for_patient(self, patient_id: int) -> int:
+        """Used by the Phase 10 dashboard — reuses calculate() rather than
+        re-deriving the low_stock condition, so there's one definition of
+        'low stock' in the whole codebase."""
+        inventories = (
+            self.db.query(MedicineInventory)
+            .join(Medicine, MedicineInventory.medicine_id == Medicine.id)
+            .filter(Medicine.patient_id == patient_id, Medicine.active.is_(True))
+            .all()
+        )
+        return sum(1 for inventory in inventories if self.calculate(inventory).low_stock)

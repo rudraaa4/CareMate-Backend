@@ -1,6 +1,6 @@
 # CareMate Development Progress
 
-Current Phase: 9
+Current Phase: 10
 
 ## Completed
 
@@ -14,22 +14,27 @@ Current Phase: 9
 - [x] Phase 7 - Medication events
 - [x] Phase 8 - Adherence engine
 - [x] Phase 9 - Medicine inventory
+- [x] Phase 10 - Patient dashboard
+
+**MILESTONE B - Working Medication Tracker (Phases 5-10) complete.**
+Medicine -> Schedule -> Event -> Adherence -> Inventory -> Dashboard all
+exist and are wired together. Per the spec: "At this point CareMate is
+already a functioning backend product."
 
 ## Current
 
-- [ ] Phase 10 - Patient dashboard
+- [ ] Phase 11 - Health Notes
 
 ### Current Tasks
 
-- [ ] One aggregating GET /api/v1/dashboard endpoint
-- [ ] Today's scheduled/taken/remaining counts (reuse Phase 7 event data)
-- [ ] adherence_percentage (reuse AdherenceService, no duplicated logic)
-- [ ] low_stock_count (reuse InventoryService)
-- [ ] active_medicines count
-- [ ] Should NOT duplicate business logic — this phase aggregates, doesn't recalculate
+- [ ] HealthNote model (patient_id, text, recorded_at, optional medicine association)
+- [ ] CRUD: create/retrieve/edit/delete, owned by patient
+- [ ] Explicitly NOT diagnoses — free-form observations only
+- [ ] Ownership enforcement, same pattern as every prior resource
 
 ## Not Started
-- [ ] Phases 11+ - see CAREMATE_MASTER_SPEC.md
+
+- [ ] Phases 12+ - see CAREMATE_MASTER_SPEC.md (Milestone C: Health notes -> Medical documents -> Prescriptions -> Timeline)
 
 ## Decisions
 
@@ -189,6 +194,29 @@ Current Phase: 9
 - Decrementing clamps `current_quantity` at 0 (never negative) — logging
   more doses than physically remained shouldn't produce a confusing
   negative stock count.
+- **Phase 10 dashboard's `adherence_percentage` is a 7-day rolling window
+  (`AdherenceService.get_weekly_summary()`), not literally today's.** A
+  same-day figure looks artificially perfect early in the day (doses not
+  yet due aren't "eligible," so 3-of-3-taken-so-far shows 100% even with
+  1 more due later) — a trailing week is a more honest headline number.
+- **Phase 10 refactor:** extracted `get_or_create_todays_events()` into
+  `medication_event_service.py` (previously inline in the
+  `GET /medication-events/today` route) specifically so the dashboard
+  could reuse the identical query instead of duplicating it — directly
+  required by this phase's own Definition of Done ("without duplicating
+  business logic"). Verified behavior-preserving: all 63 pre-existing
+  tests still passed immediately after, before any dashboard code was
+  added.
+- **`today.scheduled` can exceed `today.taken + today.remaining`** — the
+  gap is `MISSED`/`SKIPPED` doses, which aren't broken out as their own
+  top-level field (matching the spec's minimal 3-field example response).
+  Confirmed correct, not a bug, via manual testing: a genuinely overdue
+  schedule showed `scheduled:1, taken:0, remaining:0` before being
+  addressed.
+- `active_medicines` is a plain inline count query in the route, not a
+  service method — a one-line count isn't business logic worth
+  abstracting; only the adherence/inventory/event aggregation reuses
+  services.
 
 ## Known Issues
 
@@ -206,10 +234,10 @@ Current Phase: 9
 
 ## Next Session
 
-Begin Phase 10 - Patient Dashboard: one aggregating
-`GET /api/v1/dashboard` endpoint combining today's scheduled/taken/
-remaining event counts, `AdherenceService.get_daily_summary()`,
-`InventoryService`'s low-stock count, and active medicine count. Per the
-spec's Definition of Done, this must aggregate existing services, not
-duplicate their logic — a good test of whether Phases 7-9's service
-layer was actually factored correctly.
+Milestone B (Phases 5-10) is complete — CareMate is a functioning
+medication-tracking backend end to end. Begin Milestone C, Phase 11 -
+Health Notes: a simple patient-owned free-form notes model
+(`text`, `recorded_at`, optional `medicine_id` association). Explicitly
+NOT diagnoses — plain observations only, per the spec. Same ownership
+pattern as every prior resource (patient_id derived from the JWT, never
+client-supplied).
