@@ -1,32 +1,33 @@
 # CareMate Development Progress
 
-Current Phase: 1
+Current Phase: 2
 
 ## Completed
 
 - [x] Phase 0 - Repository foundation
 - [x] Phase 1 - FastAPI foundation
+- [x] Phase 2 - PostgreSQL / SQLAlchemy / Alembic
 
 ## Current
 
-- [ ] Phase 2 - PostgreSQL / SQLAlchemy / Alembic
+- [ ] Phase 3 - User registration and authentication
 
 ### Current Tasks
 
-- [ ] Install PostgreSQL locally / configure dev instance
-- [ ] Create CareMate database
-- [ ] Configure DATABASE_URL via environment variables
-- [ ] Create app/core/config.py
-- [ ] Configure SQLAlchemy engine/session
-- [ ] Add get_db dependency
-- [ ] Configure declarative model base
-- [ ] Introduce Alembic
-- [ ] Verify migrations run
+- [ ] Create User model
+- [ ] Create migration for users table
+- [ ] Create UserCreate schema
+- [ ] Add password hashing
+- [ ] Implement POST /api/auth/register
+- [ ] Reject duplicate email
+- [ ] Implement POST /api/auth/login
+- [ ] Generate access JWT
+- [ ] Create authentication dependency
+- [ ] Add GET /api/users/me
+- [ ] Test invalid password / invalid token / missing token
 
 ## Not Started
 
-- [ ] Phase 3 - User registration and authentication
-- [ ] Phase 3 - User registration and authentication
 - [ ] Phase 4 - Patient profile
 - [ ] Phase 5 - Medicine management
 - [ ] Phase 6 - Medication scheduling
@@ -52,6 +53,19 @@ Current Phase: 1
   (built earlier with a different tool, further along than our Phase 0/1 but
   not following the phased spec) at the user's request, since it was
   occupying port 8000 and unrelated to this repository.
+- Local PostgreSQL 18 (already installed) is used for development. The app
+  connects as a dedicated `caremate_user` role (not the `postgres`
+  superuser) — least privilege, and matches how a real deployment would be
+  configured. Credentials live only in `backend/.env` (git-ignored); see
+  `.env.example` for the shape.
+- Found and dropped a leftover `caremate` Postgres database (1 stray `users`
+  table) from the same old prototype, at the user's request, and created a
+  fresh empty one owned by `caremate_user` so Alembic migrations are the
+  only thing that ever defines our schema.
+- `alembic.ini` intentionally does not contain `sqlalchemy.url` — it's
+  injected at runtime in `alembic/env.py` from `app.core.config.settings`,
+  so the DB URL/credentials are never duplicated into a version-controlled
+  file.
 
 ## Known Issues
 
@@ -59,7 +73,8 @@ None yet.
 
 ## Next Session
 
-Begin Phase 2 - PostgreSQL, SQLAlchemy and Alembic: install/configure a local
-PostgreSQL instance, create the `caremate` database, add `app/core/config.py`
-and `app/core/database.py` (engine, session, `get_db` dependency, declarative
-base), then introduce Alembic and verify migrations run.
+Begin Phase 3 - User Registration and Authentication: create the `User`
+SQLAlchemy model (`app/models/user.py`), generate its Alembic migration,
+add `UserCreate`/`UserResponse` Pydantic schemas, password hashing, and
+`POST /api/auth/register`, `POST /api/auth/login` (JWT), and a protected
+`GET /api/users/me` endpoint.
