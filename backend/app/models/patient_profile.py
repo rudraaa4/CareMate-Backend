@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
 if TYPE_CHECKING:
+    from app.models.health_note import HealthNote
     from app.models.medicine import Medicine
     from app.models.user import User
 
@@ -35,5 +36,8 @@ class PatientProfile(Base):
 
     user: Mapped["User"] = relationship(back_populates="patient_profile")
     medicines: Mapped[list["Medicine"]] = relationship(
+        back_populates="patient", cascade="all, delete-orphan"
+    )
+    health_notes: Mapped[list["HealthNote"]] = relationship(
         back_populates="patient", cascade="all, delete-orphan"
     )

@@ -28,7 +28,7 @@
 </p>
 
 <label>API base URL
-  <input id="base-url" value="http://127.0.0.1:8001" />
+  <input id="base-url" value="http://127.0.0.1:8002" />
 </label>
 
 <fieldset>
@@ -103,6 +103,17 @@
 <fieldset>
   <legend>9. Dashboard</legend>
   <button onclick="getDashboard()">GET /dashboard</button>
+</fieldset>
+
+<fieldset>
+  <legend>10. Health Notes</legend>
+  <label>Text <input id="note-text" value="Felt a bit nauseous after evening dose" /></label>
+  <label>Medicine ID (optional association, blank = none) <input id="note-med-id" value="" /></label>
+  <button onclick="createNote()">POST /health-notes</button>
+  <button onclick="listNotes()">GET /health-notes</button>
+  <label>Note ID (for get/delete below) <input id="note-id" value="1" /></label>
+  <button onclick="getNote()">GET /health-notes/:id</button>
+  <button onclick="deleteNote()">DELETE /health-notes/:id</button>
 </fieldset>
 
 <fieldset>
@@ -419,6 +430,60 @@ async function getDashboard() {
     log("GET /dashboard", res.status, body);
   } catch (err) {
     log("GET /dashboard", "ERR", String(err));
+  }
+}
+
+async function createNote() {
+  const text = document.getElementById("note-text").value;
+  const medIdRaw = document.getElementById("note-med-id").value.trim();
+  const payload = { text };
+  if (medIdRaw) payload.medicine_id = Number(medIdRaw);
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/health-notes`, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json();
+    log("POST /health-notes", res.status, body);
+    if (res.ok) document.getElementById("note-id").value = body.id;
+  } catch (err) {
+    log("POST /health-notes", "ERR", String(err));
+  }
+}
+
+async function listNotes() {
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/health-notes`, { headers: authHeaders() });
+    const body = await res.json();
+    log("GET /health-notes", res.status, body);
+  } catch (err) {
+    log("GET /health-notes", "ERR", String(err));
+  }
+}
+
+async function getNote() {
+  const id = document.getElementById("note-id").value;
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/health-notes/${id}`, { headers: authHeaders() });
+    const body = await res.json();
+    log(`GET /health-notes/${id}`, res.status, body);
+  } catch (err) {
+    log("GET /health-notes/:id", "ERR", String(err));
+  }
+}
+
+async function deleteNote() {
+  const id = document.getElementById("note-id").value;
+  try {
+    const res = await fetch(`${baseUrl()}/api/v1/health-notes/${id}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
+    const body = res.status === 204 ? { deleted: true } : await res.json();
+    log(`DELETE /health-notes/${id}`, res.status, body);
+  } catch (err) {
+    log("DELETE /health-notes/:id", "ERR", String(err));
   }
 }
 </script>

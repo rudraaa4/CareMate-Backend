@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.api.routes.auth import router as auth_router
 from app.api.routes.dashboard import router as dashboard_router
+from app.api.routes.health_notes import router as health_notes_router
 from app.api.routes.inventory import router as inventory_router
 from app.api.routes.medication_events import router as medication_events_router
 from app.api.routes.medicines import router as medicines_router
@@ -37,6 +38,7 @@ app.include_router(schedules_router)
 app.include_router(medication_events_router)
 app.include_router(inventory_router)
 app.include_router(dashboard_router)
+app.include_router(health_notes_router)
 
 
 @app.get("/api/health")

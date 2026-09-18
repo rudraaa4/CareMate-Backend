@@ -1,6 +1,6 @@
 # CareMate Development Progress
 
-Current Phase: 10
+Current Phase: 11
 
 ## Completed
 
@@ -15,6 +15,7 @@ Current Phase: 10
 - [x] Phase 8 - Adherence engine
 - [x] Phase 9 - Medicine inventory
 - [x] Phase 10 - Patient dashboard
+- [x] Phase 11 - Health notes
 
 **MILESTONE B - Working Medication Tracker (Phases 5-10) complete.**
 Medicine -> Schedule -> Event -> Adherence -> Inventory -> Dashboard all
@@ -23,18 +24,19 @@ already a functioning backend product."
 
 ## Current
 
-- [ ] Phase 11 - Health Notes
+- [ ] Phase 12 - Medical Document Vault
 
 ### Current Tasks
 
-- [ ] HealthNote model (patient_id, text, recorded_at, optional medicine association)
-- [ ] CRUD: create/retrieve/edit/delete, owned by patient
-- [ ] Explicitly NOT diagnoses — free-form observations only
-- [ ] Ownership enforcement, same pattern as every prior resource
+- [ ] MedicalDocument model (document_type, storage_key/path, original_filename, content_type, document_date, description, uploaded_at)
+- [ ] Upload validation: allowed types/sizes, safe generated storage names (never trust client filename as a path)
+- [ ] Local dev storage, cleanly abstracted for later object storage
+- [ ] Authorized download endpoint, ownership-checked
+- [ ] Prevent path traversal; no unrestricted public upload directory
 
 ## Not Started
 
-- [ ] Phases 12+ - see CAREMATE_MASTER_SPEC.md (Milestone C: Health notes -> Medical documents -> Prescriptions -> Timeline)
+- [ ] Phases 13+ - see CAREMATE_MASTER_SPEC.md (Milestone C continued: Prescriptions -> Timeline)
 
 ## Decisions
 
@@ -217,27 +219,60 @@ already a functioning backend product."
   service method — a one-line count isn't business logic worth
   abstracting; only the adherence/inventory/event aggregation reuses
   services.
+- **Phase 11 hard-deletes, unlike every prior resource.**
+  `DELETE /health-notes/{id}` really removes the row (204, verified by a
+  subsequent GET returning 404) rather than soft-archiving like
+  `Medicine`/`MedicationSchedule` do. Deliberate: a personal note carries
+  no adherence/timeline history that needs preserving, and a patient
+  should be able to actually remove something they wrote.
+- **`medicine_id` on a health note is validated for ownership at the
+  application layer, not just the DB FK.** It arrives inside the request
+  body (not the URL), so a client could try to tag a note with another
+  patient's medicine ID; the FK alone would only reject a genuinely
+  nonexistent ID, not one that exists but belongs to someone else. Rejected
+  with `400` (invalid request value) rather than `404` (reserved for the
+  primary resource in the URL — the note itself). Verified manually:
+  Patient B tagging a note with Patient A's medicine_id -> 400.
+- `recorded_at` is client-settable (defaults to now if omitted) — unlike
+  `MedicationEvent.actual_taken_at` (always server time, Phase 7, to
+  prevent spoofing when adherence math depends on it), a health note's
+  timing is inherently the patient's own account of when something
+  happened, not something to guard against.
 
 ## Known Issues
 
-- **Port 8000 is currently unreliable in this Windows dev session** —
-  after repeated server restarts during development, the OS was left with
-  a stale/ambiguous listening-socket state on port 8000 that silently
-  served responses from a dead process (missing recent routes) instead of
+- **Port 8001 also became stale/ghost-listener afflicted mid-session
+  (same syndrome as port 8000 — see below), discovered when
+  `/api/v1/health-notes` was missing from a freshly restarted server's
+  routes despite the source code being correct** (confirmed via a direct
+  `python -c "from app.main import app; app.openapi()"` in a brand-new
+  process, bypassing uvicorn entirely — the app itself was always
+  correct). `Get-NetTCPConnection` kept reporting a listener on 8001 even
+  after killing every matching process by real Windows PID. **Moved to
+  port 8002 for the remainder of this session**
+  (`tools/api-tester.html` updated accordingly). If this keeps recurring
+  on future ports, treat it as confirmation the fix is a machine restart,
+  not further troubleshooting — don't sink more time into it.
+- **Port 8000 is unreliable in this Windows session** (original
+  instance of the issue above) — after repeated server restarts during
+  development, the OS was left with a stale/ambiguous listening-socket
+  state that silently served responses from a dead process instead of
   the freshly started one. `netstat`/`Get-NetTCPConnection` output should
   not be trusted as ground truth while this persists — verify with
   `curl http://127.0.0.1:<port>/openapi.json` after any restart instead.
-  Worked around by running the dev server on **port 8001** for the rest
-  of this session (`tools/api-tester.html` defaults to 8001 accordingly).
   This is host/session state, not a code or project issue — likely
-  resolves after a machine restart, at which point 8000 can be used again.
+  resolves after a machine restart.
 
 ## Next Session
 
-Milestone B (Phases 5-10) is complete — CareMate is a functioning
-medication-tracking backend end to end. Begin Milestone C, Phase 11 -
-Health Notes: a simple patient-owned free-form notes model
-(`text`, `recorded_at`, optional `medicine_id` association). Explicitly
-NOT diagnoses — plain observations only, per the spec. Same ownership
-pattern as every prior resource (patient_id derived from the JWT, never
-client-supplied).
+Begin Phase 12 - Medical Document Vault: `MedicalDocument` model
+(document_type enum — PRESCRIPTION/LAB_REPORT/SCAN_REPORT/
+DISCHARGE_SUMMARY/DOCTOR_NOTE/OTHER — storage_key, original_filename,
+content_type, document_date, description). Local dev file storage is
+fine per the spec, but cleanly abstracted (a storage interface, not
+filesystem calls scattered through the route) so it can become real
+object storage later without a rewrite. Security is the crux of this
+phase: validate content type/size, generate safe random storage
+filenames server-side (never trust the client's original filename as a
+path — path traversal risk), and ensure downloads are ownership-checked,
+not served from an unrestricted public directory.
