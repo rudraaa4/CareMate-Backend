@@ -1,10 +1,16 @@
+from __future__ import annotations
+
 import enum
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, Enum, String, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+
+if TYPE_CHECKING:
+    from app.models.patient_profile import PatientProfile
 
 
 class UserRole(str, enum.Enum):
@@ -34,4 +40,8 @@ class User(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    patient_profile: Mapped["PatientProfile"] = relationship(
+        back_populates="user", uselist=False, cascade="all, delete-orphan"
     )

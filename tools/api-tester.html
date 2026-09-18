@@ -28,7 +28,7 @@
 </p>
 
 <label>API base URL
-  <input id="base-url" value="http://127.0.0.1:8000" />
+  <input id="base-url" value="http://127.0.0.1:8001" />
 </label>
 
 <fieldset>
@@ -50,6 +50,15 @@
   <legend>3. Protected route</legend>
   <button onclick="getMe()">GET /api/v1/users/me (using stored token)</button>
   <button onclick="clearToken()">Clear token</button>
+</fieldset>
+
+<fieldset>
+  <legend>4. Patient profile</legend>
+  <button onclick="getProfile()">GET /api/v1/profile</button>
+  <label>Full name <input id="profile-name" value="Asha Rao" /></label>
+  <label>Date of birth <input id="profile-dob" type="date" value="1990-05-20" /></label>
+  <label>Phone <input id="profile-phone" value="9876543210" /></label>
+  <button onclick="patchProfile()">PATCH /api/v1/profile</button>
 </fieldset>
 
 <fieldset>
@@ -124,6 +133,36 @@ async function getMe() {
 function clearToken() {
   accessToken = null;
   document.getElementById("token-box").textContent = "No token yet — login to get one.";
+}
+
+async function getProfile() {
+  try {
+    const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+    const res = await fetch(`${baseUrl()}/api/v1/profile`, { headers });
+    const body = await res.json();
+    log("GET /profile", res.status, body);
+  } catch (err) {
+    log("GET /profile", "ERR", String(err));
+  }
+}
+
+async function patchProfile() {
+  const full_name = document.getElementById("profile-name").value;
+  const date_of_birth = document.getElementById("profile-dob").value;
+  const phone = document.getElementById("profile-phone").value;
+  try {
+    const headers = { "Content-Type": "application/json" };
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    const res = await fetch(`${baseUrl()}/api/v1/profile`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ full_name, date_of_birth, phone }),
+    });
+    const body = await res.json();
+    log("PATCH /profile", res.status, body);
+  } catch (err) {
+    log("PATCH /profile", "ERR", String(err));
+  }
 }
 </script>
 

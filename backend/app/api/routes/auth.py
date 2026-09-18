@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import create_access_token, hash_password, verify_password
+from app.models.patient_profile import PatientProfile
 from app.models.user import User
 from app.schemas.token import Token
 from app.schemas.user import UserCreate, UserResponse
@@ -21,6 +22,12 @@ def register_user(user_in: UserCreate, db: Session = Depends(get_db)) -> User:
 
     user = User(email=user_in.email, password_hash=hash_password(user_in.password))
     db.add(user)
+    db.flush()  # sends the INSERT and populates user.id, without ending the transaction
+
+    # Every user gets an empty PatientProfile immediately — created in the
+    # same transaction so we never end up with one row and not the other.
+    db.add(PatientProfile(user_id=user.id))
+
     db.commit()
     db.refresh(user)
     return user
