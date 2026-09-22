@@ -68,17 +68,51 @@ access is explicitly tested for each one (see `backend/tests/`).
 
 ## Local Setup
 
+**Prerequisites:** Python 3.12+, a running PostgreSQL 14+ server.
+
+**1. Create the database and a dedicated app role** (run once, as your Postgres
+superuser — not the app's own user, which shouldn't have superuser rights):
+
+```bash
+psql -U postgres -c "CREATE USER caremate_user WITH PASSWORD 'caremate_password';"
+psql -U postgres -c "CREATE DATABASE caremate OWNER caremate_user;"
+psql -U postgres -c "CREATE DATABASE caremate_test OWNER caremate_user;"
+```
+
+Use a different password if you like — just match it in `.env` in step 3.
+`caremate_test` is required to run the test suite (see [Tests](#tests)) —
+`pytest` runs against it exclusively, never against `caremate`, and its
+tables are dropped and recreated every test session, so it's always safe to
+drop and recreate if it ever gets into a weird state.
+
+**2. Set up the Python environment:**
+
 ```bash
 cd backend
 python -m venv venv
 venv\Scripts\activate        # Windows; use `source venv/bin/activate` on macOS/Linux
 pip install -r requirements.txt
+```
 
-cp ../.env.example .env      # then fill in DATABASE_URL and SECRET_KEY
+**3. Configure and migrate:**
+
+```bash
+cp ../.env.example .env
+# Edit .env: set a real SECRET_KEY, e.g.
+#   python -c "import secrets; print(secrets.token_hex(32))"
+# and confirm DATABASE_URL matches the role/database from step 1.
+
 alembic upgrade head
+```
 
+**4. Run it:**
+
+```bash
 uvicorn app.main:app --reload
 ```
+
+Visit `http://localhost:8000/docs` for interactive Swagger UI — the fastest
+way to try every endpoint without writing a client.
 
 ## Environment Variables
 
