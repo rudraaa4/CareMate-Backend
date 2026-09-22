@@ -33,27 +33,52 @@ built **one phase at a time**; current progress is tracked in
 
 - Python, FastAPI, Uvicorn
 - SQLAlchemy 2.x (ORM) + Alembic (migrations)
-- Pydantic (validation/schemas)
+- Pydantic / pydantic-settings (validation/schemas/config)
 - PostgreSQL
-- pytest / httpx for testing
-- Postman for manual API testing
+- bcrypt (password hashing) + PyJWT (stateless access tokens)
+- pytest (93 tests, run against an isolated test database)
 - Git/GitHub for version control
 - React (planned, later phase) for the frontend
 
 ## Current Implemented Features
 
-None yet — repository foundation only (Phase 0). See
-[`DEVELOPMENT_PROGRESS.md`](./DEVELOPMENT_PROGRESS.md) for live status.
+Phases 0–12 of [`CAREMATE_MASTER_SPEC.md`](./CAREMATE_MASTER_SPEC.md) are
+complete — see [`DEVELOPMENT_PROGRESS.md`](./DEVELOPMENT_PROGRESS.md) for
+live, phase-by-phase status and the design decisions behind each one.
+
+- **Auth**: registration, login (JWT via FastAPI's OAuth2 password flow),
+  bcrypt password hashing, protected routes
+- **Patient profile**: auto-created on registration, editable
+- **Medicines**: full CRUD, soft-archive, strictly scoped per patient
+- **Schedules**: one or more times per day per medicine
+- **Medication events**: today's doses generated on demand, mark
+  taken/skipped, automatic MISSED/DELAYED classification
+- **Adherence**: a real percentage computed from event history, not guessed
+- **Inventory**: stock tracking with exactly-once decrement on a taken dose,
+  low-stock/days-remaining estimates
+- **Dashboard**: one endpoint aggregating all of the above
+- **Health notes**: free-form patient observations, optionally tied to a
+  medicine
+- **Medical documents**: secure upload/list/download (PDF/JPEG/PNG), with
+  server-generated storage keys (no path traversal via filenames) and no
+  static file exposure
+
+Every resource above enforces strict per-patient ownership — cross-patient
+access is explicitly tested for each one (see `backend/tests/`).
 
 ## Local Setup
 
-Backend setup instructions will be added starting in Phase 1, once the
-FastAPI app and virtual environment exist. This section will grow to cover:
+```bash
+cd backend
+python -m venv venv
+venv\Scripts\activate        # Windows; use `source venv/bin/activate` on macOS/Linux
+pip install -r requirements.txt
 
-1. Creating and activating the Python virtual environment
-2. Installing dependencies (`backend/requirements.txt`)
-3. Running the API with Uvicorn
-4. Applying database migrations with Alembic
+cp ../.env.example .env      # then fill in DATABASE_URL and SECRET_KEY
+alembic upgrade head
+
+uvicorn app.main:app --reload
+```
 
 ## Environment Variables
 
@@ -62,20 +87,32 @@ environment variables. Never commit a real `.env` file — it is git-ignored.
 
 ## Database Migrations
 
-Alembic will be introduced in Phase 2. Commands will be documented here once
-migrations exist.
+```bash
+cd backend
+alembic revision --autogenerate -m "description of the change"
+alembic upgrade head
+```
+
+The database URL is read from `Settings` (`.env`), not hardcoded in
+`alembic.ini` — credentials are never duplicated into a version-controlled
+file.
 
 ## Tests
 
 ```bash
-# from backend/, once the virtual environment is set up (Phase 1+)
-pytest
+cd backend
+venv\Scripts\activate
+pytest -v
 ```
+
+Tests run against a separate `caremate_test` database and a temp file-storage
+directory — they never touch dev data or write real files into
+`backend/uploads/`.
 
 ## API Documentation
 
-Once the FastAPI app is running (Phase 1+), interactive docs are available
-at `http://localhost:8000/docs` (Swagger UI) and `http://localhost:8000/redoc`.
+With the server running, interactive docs are available at
+`http://localhost:8000/docs` (Swagger UI) and `http://localhost:8000/redoc`.
 
 ## Project Roadmap
 
@@ -85,8 +122,17 @@ Milestone G: Productization).
 
 ## Safety / Privacy Limitations
 
-CareMate handles health-related information. At this stage (Phase 0) no
-patient data is stored anywhere — there is no application yet. Security
-principles the project commits to from day one are documented in
-`CAREMATE_MASTER_SPEC.md` section 9. AI (Gemini) is not used as a diagnostic
-authority anywhere in this project; see section 10.
+CareMate handles health-related information. Only fictional/dev-test data has
+ever been stored in any environment tied to this repository — no real patient
+data. Security principles the project commits to from day one are documented
+in `CAREMATE_MASTER_SPEC.md` section 9 (patient-ID ownership enforced
+server-side everywhere, passwords never stored in plaintext, uploaded files
+never exposed through unrestricted public paths). AI (Gemini) is not used
+anywhere in this project yet — no AI phase has been reached — and per section
+10, it will never be a diagnostic authority when it is introduced.
+
+Known, documented limitations (not yet addressed): inventory decrement isn't
+safe under a true concurrent race; uploaded file type is validated by
+declared content-type, not by inspecting file bytes; date/time logic assumes
+a single server timezone. See `DEVELOPMENT_PROGRESS.md` for the full list and
+reasoning behind each.
