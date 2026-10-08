@@ -36,13 +36,13 @@ built **one phase at a time**; current progress is tracked in
 - Pydantic / pydantic-settings (validation/schemas/config)
 - PostgreSQL
 - bcrypt (password hashing) + PyJWT (stateless access tokens)
-- pytest (108 tests, run against an isolated test database)
+- pytest (121 tests, run against an isolated test database)
 - Git/GitHub for version control
 - React (planned, later phase) for the frontend
 
 ## Current Implemented Features
 
-Phases 0–13 of [`CAREMATE_MASTER_SPEC.md`](./CAREMATE_MASTER_SPEC.md) are
+Phases 0–14 of [`CAREMATE_MASTER_SPEC.md`](./CAREMATE_MASTER_SPEC.md) are
 complete — see [`DEVELOPMENT_PROGRESS.md`](./DEVELOPMENT_PROGRESS.md) for
 live, phase-by-phase status and the design decisions behind each one.
 
@@ -65,6 +65,9 @@ live, phase-by-phase status and the design decisions behind each one.
 - **Prescriptions**: prescription history as its own record (date, doctor,
   hospital, notes), optionally linked to an uploaded prescription document;
   the record's `source` is assigned by the server, never the client
+- **Timeline**: one ordered care history (`GET /api/v1/timeline`) built on
+  request from prescriptions, documents, treatment starts/ends, health notes
+  and monthly adherence summaries
 
 Every resource above enforces strict per-patient ownership — cross-patient
 access is explicitly tested for each one (see `backend/tests/`).

@@ -13,6 +13,7 @@ from app.api.routes.medicines import router as medicines_router
 from app.api.routes.prescriptions import router as prescriptions_router
 from app.api.routes.profile import router as profile_router
 from app.api.routes.schedules import router as schedules_router
+from app.api.routes.timeline import router as timeline_router
 from app.api.routes.users import router as users_router
 from app.core.config import settings
 from app.core.database import get_db
@@ -43,6 +44,7 @@ app.include_router(dashboard_router)
 app.include_router(health_notes_router)
 app.include_router(documents_router)
 app.include_router(prescriptions_router)
+app.include_router(timeline_router)
 
 
 @app.get("/api/health")

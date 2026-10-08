@@ -1,6 +1,6 @@
 # CareMate Development Progress
 
-Current Phase: 13
+Current Phase: 14
 
 ## Completed
 
@@ -18,6 +18,7 @@ Current Phase: 13
 - [x] Phase 11 - Health notes
 - [x] Phase 12 - Medical document vault
 - [x] Phase 13 - Prescription domain model
+- [x] Phase 14 - Medical timeline / care thread
 
 **MILESTONE B - Working Medication Tracker (Phases 5-10) complete.**
 Medicine -> Schedule -> Event -> Adherence -> Inventory -> Dashboard all
@@ -26,15 +27,15 @@ already a functioning backend product."
 
 ## Current
 
-- [ ] Phase 14 - Medical Timeline / Care Thread
+- [ ] Phase 15 - Gemini Integration Foundation
 
 ### Current Tasks
 
-- [ ] See CAREMATE_MASTER_SPEC.md Phase 14 (read it before starting)
+- [ ] See CAREMATE_MASTER_SPEC.md Phase 15 (read it before starting)
 
 ## Not Started
 
-- [ ] Phases 14+ - see CAREMATE_MASTER_SPEC.md (Milestone C continued: Timeline)
+- [ ] Phases 15+ - see CAREMATE_MASTER_SPEC.md (Milestone D: Gemini Intelligence)
 
 ## Decisions
 
@@ -295,6 +296,28 @@ already a functioning backend product."
   `prescriptionsource` enum type, so downgrade -> upgrade round-trips
   cleanly (verified).
 
+- **Phase 14: the timeline is an aggregation service, not a table.**
+  `TimelineService` (`app/services/timeline_service.py`) builds
+  `TimelineItem` schemas on request from prescriptions, documents,
+  medicines, health notes and monthly adherence. Every source keeps its
+  own table and ownership rules; nothing to sync, nothing to drift. Route:
+  `GET /api/v1/timeline` (`?order=desc|asc`, default newest first; the
+  spec's example reads oldest-first, so both are supported).
+- A document linked from a prescription appears once, inside the
+  prescription item (with `document_id` for download). A medicine with no
+  `start_date` is shown on the day it was added. Adherence is one item
+  per calendar month with at least one eligible dose, using the same
+  `AdherenceService` formula as the dashboard; the in-progress month is
+  dated today.
+- "Future visits" (in the spec's source list) is not included: no visit
+  model exists yet. It becomes one more `_*_items` method when it does.
+  No pagination yet: a patient's timeline is small (adherence is monthly,
+  not per dose), but notes/documents are unbounded, so add limit/offset
+  if a real client ever needs it.
+- Timeline reads trigger the same lazy MISSED refresh as the dashboard
+  (via `AdherenceService`); each month in the range costs one events
+  query, fine at this scale.
+
 ## Known Issues
 
 - **Stale/ghost-listener port syndrome has now affected 8000, 8001, and
@@ -317,6 +340,6 @@ already a functioning backend product."
 
 ## Next Session
 
-Begin Phase 14 - Medical Timeline / Care Thread (read the spec section
-first). Phase 13 (prescriptions) is complete: 108 tests passing,
-migration `95ddcbc9a763` applied.
+Begin Phase 15 - Gemini Integration Foundation (read the spec section
+first; no AI features beyond the foundation yet). Phase 14 (timeline) is
+complete.
