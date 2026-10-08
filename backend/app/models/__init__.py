@@ -5,6 +5,7 @@ from app.models.medication_schedule import MedicationSchedule
 from app.models.medicine import Medicine
 from app.models.medicine_inventory import MedicineInventory
 from app.models.patient_profile import PatientProfile
+from app.models.prescription import Prescription
 from app.models.user import User
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "Medicine",
     "MedicineInventory",
     "PatientProfile",
+    "Prescription",
     "User",
 ]

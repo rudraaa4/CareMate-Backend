@@ -1,6 +1,6 @@
 # CareMate Development Progress
 
-Current Phase: 12
+Current Phase: 13
 
 ## Completed
 
@@ -17,6 +17,7 @@ Current Phase: 12
 - [x] Phase 10 - Patient dashboard
 - [x] Phase 11 - Health notes
 - [x] Phase 12 - Medical document vault
+- [x] Phase 13 - Prescription domain model
 
 **MILESTONE B - Working Medication Tracker (Phases 5-10) complete.**
 Medicine -> Schedule -> Event -> Adherence -> Inventory -> Dashboard all
@@ -25,18 +26,15 @@ already a functioning backend product."
 
 ## Current
 
-- [ ] Phase 13 - Prescription Domain Model
+- [ ] Phase 14 - Medical Timeline / Care Thread
 
 ### Current Tasks
 
-- [ ] Prescription model (patient_id, document_id optional, doctor_name, hospital_name, prescription_date, notes, source)
-- [ ] CRUD scoped to patient, ownership-checked
-- [ ] Optional link to a MedicalDocument (the uploaded prescription file, if any)
-- [ ] Distinguish prescription-as-domain-object from generic document metadata
+- [ ] See CAREMATE_MASTER_SPEC.md Phase 14 (read it before starting)
 
 ## Not Started
 
-- [ ] Phases 13+ - see CAREMATE_MASTER_SPEC.md (Milestone C continued: Prescriptions -> Timeline)
+- [ ] Phases 14+ - see CAREMATE_MASTER_SPEC.md (Milestone C continued: Timeline)
 
 ## Decisions
 
@@ -274,6 +272,29 @@ already a functioning backend product."
   bounds how much a client can force the server to buffer, regardless of
   what size it actually claims to be sending.
 
+- **Phase 13: `Prescription` is its own table, not a flavor of
+  `MedicalDocument`.** A document is a file; a prescription is a
+  healthcare record (date, doctor, hospital, notes) that may or may not
+  have a file. `document_id` is an optional foreign key, so history can
+  be stored without any upload, and later phases (structured items in
+  Phase 20) hang off the prescription row.
+- **`source` is derived by the server, never accepted from the client**
+  (`manual` with no document, `document_upload` with one). Later phases
+  add AI-extracted and doctor-issued values whose trustworthiness depends
+  on only the server being able to assign them, so the pattern is set
+  now. A test confirms a client-supplied `source` is ignored.
+- **`document_id` must belong to the same patient and be of type
+  `prescription`** - otherwise 400, same convention as Phase 11's
+  `medicine_id` (404 is reserved for the resource in the URL). Attaching
+  or detaching a document via PATCH recomputes `source`.
+- `PATCH` with `prescription_date: null` is rejected with 422 (the
+  column is NOT NULL) rather than reaching the database as a 500.
+- DELETE is a real delete (like notes) and leaves any linked document in
+  the vault untouched.
+- Alembic downgrade for this migration also drops the
+  `prescriptionsource` enum type, so downgrade -> upgrade round-trips
+  cleanly (verified).
+
 ## Known Issues
 
 - **Stale/ghost-listener port syndrome has now affected 8000, 8001, and
@@ -296,10 +317,6 @@ already a functioning backend product."
 
 ## Next Session
 
-Begin Phase 13 - Prescription Domain Model: treat prescriptions as
-healthcare domain objects, not only generic uploaded files. `Prescription`
-model (patient_id, optional document_id linking to an uploaded
-`MedicalDocument`, doctor_name, hospital_name, prescription_date, notes,
-source). CRUD scoped to patient. Later phases (16: AI extraction, 20:
-structured digital prescriptions) build on this, but don't implement
-those yet — this phase is just the domain object and basic CRUD.
+Begin Phase 14 - Medical Timeline / Care Thread (read the spec section
+first). Phase 13 (prescriptions) is complete: 108 tests passing,
+migration `95ddcbc9a763` applied.

@@ -10,6 +10,7 @@ from app.api.routes.health_notes import router as health_notes_router
 from app.api.routes.inventory import router as inventory_router
 from app.api.routes.medication_events import router as medication_events_router
 from app.api.routes.medicines import router as medicines_router
+from app.api.routes.prescriptions import router as prescriptions_router
 from app.api.routes.profile import router as profile_router
 from app.api.routes.schedules import router as schedules_router
 from app.api.routes.users import router as users_router
@@ -41,6 +42,7 @@ app.include_router(inventory_router)
 app.include_router(dashboard_router)
 app.include_router(health_notes_router)
 app.include_router(documents_router)
+app.include_router(prescriptions_router)
 
 
 @app.get("/api/health")

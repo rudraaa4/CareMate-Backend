@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.models.health_note import HealthNote
     from app.models.medical_document import MedicalDocument
     from app.models.medicine import Medicine
+    from app.models.prescription import Prescription
     from app.models.user import User
 
 
@@ -43,5 +44,8 @@ class PatientProfile(Base):
         back_populates="patient", cascade="all, delete-orphan"
     )
     medical_documents: Mapped[list["MedicalDocument"]] = relationship(
+        back_populates="patient", cascade="all, delete-orphan"
+    )
+    prescriptions: Mapped[list["Prescription"]] = relationship(
         back_populates="patient", cascade="all, delete-orphan"
     )
