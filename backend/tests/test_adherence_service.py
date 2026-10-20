@@ -115,10 +115,14 @@ def test_stale_upcoming_event_is_treated_as_missed(client, db):
     whole reason refresh_missed_statuses was promoted into a shared
     service rather than left private to the routes file."""
     patient_id, schedule_id = setup_patient_with_schedule(client)
-    today = local_now().date()
-    seed_event(schedule_id, local_now() - timedelta(hours=5), MedicationEventStatus.UPCOMING)
+    # Query the event's own date, not "today": 5 hours ago is still
+    # yesterday when the suite runs before 05:00.
+    event_at = local_now() - timedelta(hours=5)
+    seed_event(schedule_id, event_at, MedicationEventStatus.UPCOMING)
 
-    summary = AdherenceService(db, patient_id).calculate_period_adherence(today, today)
+    summary = AdherenceService(db, patient_id).calculate_period_adherence(
+        event_at.date(), event_at.date()
+    )
 
     assert summary.expected_doses == 1
     assert summary.missed_doses == 1

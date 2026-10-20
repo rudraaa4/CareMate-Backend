@@ -26,5 +26,12 @@ class Settings(BaseSettings):
     # whitelist lives as a constant in app/api/routes/documents.py instead.
     max_upload_size_bytes: int = 10 * 1024 * 1024  # 10 MB
 
+    # Where uploaded documents live: "local" (backend/uploads, the default for
+    # development) or "s3" (requires s3_bucket; credentials come from the
+    # environment's AWS identity, never from these settings).
+    storage_backend: str = "local"
+    s3_bucket: str | None = None
+    aws_region: str | None = None
+
 
 settings = Settings()

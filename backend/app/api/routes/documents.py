@@ -1,6 +1,7 @@
 import io
 from collections.abc import Generator
 from datetime import date
+from functools import lru_cache
 from typing import BinaryIO
 from uuid import uuid4
 
@@ -16,6 +17,7 @@ from app.models.user import User
 from app.schemas.medical_document import MedicalDocumentResponse
 from app.storage.base import FileStorage
 from app.storage.local import LocalFileStorage
+from app.storage.s3 import S3FileStorage
 
 router = APIRouter(prefix="/api/v1/documents", tags=["Medical Documents"])
 
@@ -34,7 +36,17 @@ def get_storage() -> FileStorage:
     can override it with a temp-directory-backed storage — the same
     principle as get_db being overridden for the test database (Phase 3).
     Without this, tests would write real files into backend/uploads/."""
+    if settings.storage_backend == "s3":
+        return _s3_storage()
     return LocalFileStorage()
+
+
+@lru_cache
+def _s3_storage() -> S3FileStorage:
+    # Cached: creating a boto3 client per request is slow and unnecessary.
+    if not settings.s3_bucket:
+        raise RuntimeError("STORAGE_BACKEND=s3 requires S3_BUCKET to be set")
+    return S3FileStorage(settings.s3_bucket, settings.aws_region)
 
 
 async def _read_with_size_limit(file: UploadFile, max_bytes: int) -> bytes:
