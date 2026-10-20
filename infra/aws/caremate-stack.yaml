@@ -1,0 +1,282 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  CareMate reference deployment - VPC with public/private subnets, private RDS
+  PostgreSQL, private S3 bucket for documents, secrets in Secrets Manager, and
+  one EC2 instance that builds and runs the API container. Deleting the stack
+  removes everything (empty the S3 bucket first).
+
+Parameters:
+  MyIpCidr:
+    Type: String
+    Description: Your public IP in CIDR form, e.g. 203.0.113.7/32 (only this address can reach the API on port 8000).
+    AllowedPattern: '^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$'
+  GitRepoUrl:
+    Type: String
+    Default: https://github.com/rudraaa4/CareMate-Backend.git
+  GitBranch:
+    Type: String
+    Default: aws-deploy
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    Description: Change only if your account says t3.micro is not Free-plan eligible.
+  DbInstanceClass:
+    Type: String
+    Default: db.t3.micro
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+
+Resources:
+  # ---------------------------------------------------------------- Network
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: [{ Key: Name, Value: caremate-vpc }]
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags: [{ Key: Name, Value: caremate-igw }]
+
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.0.0.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags: [{ Key: Name, Value: caremate-public-a }]
+
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.0.10.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      Tags: [{ Key: Name, Value: caremate-private-a }]
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.0.11.0/24
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      Tags: [{ Key: Name, Value: caremate-private-b }]
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags: [{ Key: Name, Value: caremate-public-rt }]
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  # No route to the internet at all: the database subnets are private.
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags: [{ Key: Name, Value: caremate-private-rt }]
+
+  PrivateSubnetARouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetBRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      RouteTableId: !Ref PrivateRouteTable
+
+  # Free: keeps S3 traffic on the AWS network instead of the internet.
+  S3GatewayEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref Vpc
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcEndpointType: Gateway
+      RouteTableIds: [!Ref PublicRouteTable, !Ref PrivateRouteTable]
+
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: CareMate API - port 8000 from your IP only
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 8000, ToPort: 8000, CidrIp: !Ref MyIpCidr }
+      Tags: [{ Key: Name, Value: caremate-app-sg }]
+
+  DbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: CareMate database - PostgreSQL from the app only
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 5432, ToPort: 5432, SourceSecurityGroupId: !Ref AppSecurityGroup }
+      Tags: [{ Key: Name, Value: caremate-db-sg }]
+
+  # ---------------------------------------------------------------- Secrets
+  DbSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: CareMate database master credentials (generated)
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "caremate_user"}'
+        GenerateStringKey: password
+        PasswordLength: 24
+        ExcludePunctuation: true
+
+  AppSecretKey:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: CareMate JWT signing key (generated)
+      GenerateSecretString:
+        PasswordLength: 64
+        ExcludePunctuation: true
+
+  # ---------------------------------------------------------------- Storage
+  DocumentsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+
+  # ---------------------------------------------------------------- Database
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Private subnets for CareMate
+      SubnetIds: [!Ref PrivateSubnetA, !Ref PrivateSubnetB]
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete # the default is Snapshot, which would leave a billed snapshot behind
+    Properties:
+      Engine: postgres
+      EngineVersion: "18"
+      DBInstanceClass: !Ref DbInstanceClass
+      AllocatedStorage: "20"
+      StorageType: gp3
+      StorageEncrypted: true
+      DBName: caremate
+      MasterUsername: caremate_user
+      MasterUserPassword: !Sub "{{resolve:secretsmanager:${DbSecret}:SecretString:password}}"
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      VPCSecurityGroups: [!Ref DbSecurityGroup]
+      PubliclyAccessible: false
+      MultiAZ: false
+      BackupRetentionPeriod: 1
+      DeleteAutomatedBackups: true
+
+  # ---------------------------------------------------------------- Identity
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        # Lets you open a shell from the console (Session Manager): no SSH port, no key pair.
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: caremate-app-access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [s3:PutObject, s3:GetObject, s3:DeleteObject]
+                Resource: !Sub "${DocumentsBucket.Arn}/*"
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: [!Ref DbSecret, !Ref AppSecretKey]
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref InstanceRole]
+
+  # ---------------------------------------------------------------- Compute
+  ApiInstance:
+    Type: AWS::EC2::Instance
+    DependsOn: [Database, PublicRoute]
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      NetworkInterfaces:
+        - DeviceIndex: "0"
+          SubnetId: !Ref PublicSubnet
+          AssociatePublicIpAddress: true
+          GroupSet: [!Ref AppSecurityGroup]
+      Tags: [{ Key: Name, Value: caremate-api }]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          # Runs once at first boot. Progress: /var/log/cloud-init-output.log
+          set -ex
+          dnf install -y docker git jq
+          systemctl enable --now docker
+
+          git clone -b ${GitBranch} ${GitRepoUrl} /opt/caremate
+          cd /opt/caremate/backend
+          docker build -t caremate .
+
+          DB_PASSWORD=$(aws secretsmanager get-secret-value --region ${AWS::Region} --secret-id ${DbSecret} --query SecretString --output text | jq -r .password)
+          SECRET_KEY=$(aws secretsmanager get-secret-value --region ${AWS::Region} --secret-id ${AppSecretKey} --query SecretString --output text)
+
+          cat > /opt/caremate.env <<EOF
+          ENVIRONMENT=production
+          DATABASE_URL=postgresql+psycopg://caremate_user:$DB_PASSWORD@${Database.Endpoint.Address}:5432/caremate
+          SECRET_KEY=$SECRET_KEY
+          STORAGE_BACKEND=s3
+          S3_BUCKET=${DocumentsBucket}
+          AWS_REGION=${AWS::Region}
+          EOF
+          chmod 600 /opt/caremate.env
+
+          # Host networking lets the container reach the instance's IAM role credentials.
+          docker run -d --name caremate --restart unless-stopped --network host --env-file /opt/caremate.env caremate
+
+Outputs:
+  ApiDocsUrl:
+    Description: Open this once the instance has finished its first-boot setup (about 5 minutes).
+    Value: !Sub "http://${ApiInstance.PublicIp}:8000/docs"
+  BucketName:
+    Value: !Ref DocumentsBucket
+  DatabaseEndpoint:
+    Value: !GetAtt Database.Endpoint.Address
+  InstanceId:
+    Value: !Ref ApiInstance
